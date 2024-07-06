@@ -35,6 +35,7 @@ if role == "server":
             logger.info(f"Subserver {msg.sender} joined in.")
             logger.info(comm_manager.neighbors.keys())
     logger.debug("all subserver connect")
+
 elif role == "client_1":
     time.sleep(3)
     logger.info(f"client {role} start")
@@ -60,6 +61,7 @@ elif role == "client_1":
             }
         )
     )
+
 else:
     time.sleep(3)
     logger.info(f"client {role} start")

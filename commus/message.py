@@ -234,7 +234,6 @@ class Message(object):
         return splited_msg
 
     def _parse_msg(self, value):
-        print(value)
         if isinstance(value, gRPC_comm_manager_pb2.MsgValue) or isinstance(
                 value, gRPC_comm_manager_pb2.mSingle):
             return self._parse_msg(getattr(value, value.WhichOneof("type")))
