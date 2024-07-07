@@ -138,7 +138,7 @@ class BaseTrainer(ABC):
                 client_num=self.F.num_sub
             )
         else:
-            time.sleep(3)  # wait for server
+            time.sleep(2)  # wait for server
             self.logger.debug(f"subserver {self.F.client_name} build communicator")
             self.comm_manager = gRPCCommManager(
                 host=self.F.client_ip,
@@ -181,8 +181,8 @@ class BaseTrainer(ABC):
         self._server_join()
 
         while self.round < self.F.rounds:
-            this_round_client_ids = self.selections[self.round]
-            balance_sampling = LoadBalanceSampling(this_round_client_ids, self.F.num_sub)
+            self.client_selection()
+            balance_sampling = LoadBalanceSampling(self.client_ids, self.F.num_sub)
             client_ids = {}
             for i in range(self.F.num_sub):
                 client_ids[i] = balance_sampling[i]

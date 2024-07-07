@@ -1,0 +1,58 @@
+data_config:
+#  data_name: lcp
+  model_max_length: 1024
+  debug_mode: true
+  overwrite_cache: true
+
+federated_config:
+  alpha: 0 # 1.0/10.0/0.1
+  clients_num: 100
+  rounds: 100
+  sample: 0.02
+
+  log_valid_len:  # also effects in cen
+  save_valid_len: 10
+
+  test_rounds: false
+  log_test_len:
+
+  pson: false
+
+  local_trainer_name: fedavg_dpo
+  server_ip: 172.17.0.3
+  server_port: 50051
+#  server_ip: 127.0.0.1
+#  server_port: 50051
+
+model_config:
+  tuning_type: lora # lora/emulator/
+  lora_rank: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  num_virtual_tokens: 64
+  bottleneck_dim: 16
+
+training_config:
+  seed: 42
+  num_train_epochs: 1
+  learning_rate: 3e-4
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+  per_device_eval_batch_size: 8
+  load_in_8bit: true
+  bf16: true
+#  align_type: dpo
+#  align_type: dpo
+#  weight_decay: 0.
+#  warmup_ratio: 0.03
+  # linear, cosine
+  lr_scheduler_type: linear
+#  dataloader_num_workers: 0
+
+  metric_name: lcp
+  is_decreased_valid_metric: false # ppl:true
+
+  do_sample: false
+  generation_max_length: 512
+
+  save_outputs: true

@@ -36,6 +36,11 @@ if role == "server":
             logger.info(comm_manager.neighbors.keys())
     logger.debug("all subserver connect")
 
+    for i in range(5):
+        print(f"{role} {i}")
+        time.sleep(2)
+    logger.debug(f"{role} done !!!")
+
 elif role == "client_1":
     time.sleep(3)
     logger.info(f"client {role} start")
@@ -61,6 +66,10 @@ elif role == "client_1":
             }
         )
     )
+    for i in range(10):
+        print(f"{role} {i}")
+        time.sleep(1)
+    logger.debug(f"{role} done !!!")
 
 else:
     time.sleep(3)
@@ -87,3 +96,7 @@ else:
             }
         )
     )
+    for i in range(10):
+        print(f"{role} {i}")
+        time.sleep(0.5)
+    logger.debug(f"{role} done !!!")

@@ -31,8 +31,8 @@ else
     model_name_or_path=""
 fi
 
-# example: bash ./scripts/run.sh /userhome fedpit llama2-base fedavg alpt 10001 0
-deepspeed --include localhost:2,3 --master_port 10001 main.py \
+# example: bash ./scripts/run_all.sh /userhome fed4llm llama2-base fedavg ultrafeedback_binarized 10001 0
+deepspeed --include localhost:1 --master_port 10001 main.py \
 --do_train \
 --raw_dataset_path ${run_dirs}/data/${project_name}/${task_name}_data.pkl \
 --partition_dataset_path ${run_dirs}/data/${project_name}/${task_name}_partition.pkl \
