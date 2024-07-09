@@ -11,6 +11,7 @@ from loguru import logger
 
 import torch
 
+# 启动命令 bash ./scripts/test.sh
 role = str(sys.argv[1])
 server_ip = client_ip = "172.17.0.2"  # docker hostname -I
 server_port = "15001"
