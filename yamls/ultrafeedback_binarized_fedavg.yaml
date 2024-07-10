@@ -19,10 +19,10 @@ federated_config:
   pson: false
 
   local_trainer_name: fedavg_dpo
-  server_ip: 172.17.0.3
-  server_port: 50051
-#  server_ip: 127.0.0.1
+#  server_ip: 172.17.0.3
 #  server_port: 50051
+  server_ip: 127.0.0.1
+  server_port: 15001
 
 model_config:
   tuning_type: lora # lora/emulator/

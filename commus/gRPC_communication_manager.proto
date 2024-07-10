@@ -8,12 +8,16 @@ message MessageRequest{
     map<string, MsgValue> msg = 1;
 }
 
+message MessageResponse{
+    string msg = 1;
+}
+
 message MsgValue{
     oneof type {
         mSingle single_msg = 1;
         mList list_msg = 2;
-        mDict_keyIsString dict_msg_stringkey = 3;
-        mDict_keyIsInt dict_msg_intkey = 4;
+        mDict_keyIsString dict_msg_string_key = 3;
+        mDict_keyIsInt dict_msg_int_key = 4;
     }
 }
 
@@ -35,8 +39,4 @@ message mDict_keyIsString{
 
 message mDict_keyIsInt{
     map<int32, MsgValue> dict_value = 1;
-}
-
-message MessageResponse{
-    string msg = 1;
 }
