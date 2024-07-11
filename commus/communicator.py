@@ -8,7 +8,7 @@ from .gRPC_server import gRPCComServeFunc
 from .message import Message
 
 
-class gRPCCommunicationManager:
+class gRPCCommunicationManager(object):
     def __init__(
             self,
             ip: str = "127.0.0.1",

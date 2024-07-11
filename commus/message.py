@@ -21,7 +21,7 @@ def b64serializer(x):
     return base64.b64encode(pickle.dumps(x))
 
 
-class Message:
+class Message(object):
     """
     The data exchanged during an FL course are abstracted as 'Message'.
     A message object includes:
