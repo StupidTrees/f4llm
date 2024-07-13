@@ -1,20 +1,20 @@
-import queue
+
 from collections import deque
-from commus import gRPC_comm_manager_pb2
-from commus import gRPC_comm_manager_pb2_grpc
+from . import gRPC_communication_manager_pb2 as gRPC_communication_manager_pb2
+from . import gRPC_communication_manager_pb2_grpc as gRPC_communication_manager_pb2_grpc
 
 
-class gRPCComServeFunc(gRPC_comm_manager_pb2_grpc.gRPCComServeFuncServicer):
+class gRPCComServeFunc(gRPC_communication_manager_pb2_grpc.gRPCComServeFuncServicer):
     def __init__(self):
-        self.msg_queue = deque()
+        self.message_queue = deque()
 
     def sendMessage(self, request, context):
-        self.msg_queue.append(request)
+        self.message_queue.append(request)
 
-        return gRPC_comm_manager_pb2.MessageResponse(msg='ACK')
+        return gRPC_communication_manager_pb2.MessageResponse(msg='ACK')
 
     def receive(self):
-        while len(self.msg_queue) == 0:
+        while len(self.message_queue) == 0:
             continue
-        msg = self.msg_queue.popleft()
-        return msg
+        message = self.message_queue.popleft()
+        return message

@@ -13,3 +13,8 @@ peft==0.5.0
 bert-score
 rouge
 pandas
+grpcio
+grpcio-tools
+trl
+tabulate
+bitsandbytes
