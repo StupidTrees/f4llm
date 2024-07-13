@@ -153,7 +153,6 @@ class BaseTrainer(ABC):
 
     def _server_join(self):
         client_num = 0
-        print(self.F.server_ip, self.F.server_port)
         while client_num < self.F.num_sub:
             msg = self.comm_manager.receive()
             self.logger.info(f"Subserver {msg.sender} joined in.")
@@ -211,9 +210,10 @@ class BaseTrainer(ABC):
                         params_list.append(params)
                         loss_list.append(msg.content['loss'][client_id])
                         self.metric_log["train_logs"][self.round][client_id] = msg.content['loss'][client_id]
-
             # aggregation
             self.global_update(params_list, loss_list)
+
+        self.on_server_end()
 
     def client_run(self):
         self._client_join()
@@ -221,6 +221,7 @@ class BaseTrainer(ABC):
             msg = self.comm_manager.receive()
             if msg.message_type == 101:
                 # self.test()
+                self.on_client_end()
                 break
             elif msg.message_type == 200:
                 model_parameters = msg.content['model']
@@ -241,10 +242,8 @@ class BaseTrainer(ABC):
     def train(self):
         if self.role == "server":
             self.server_run()
-            self.on_server_end()
         else:
             self.client_run()
-            self.on_client_end()
 
     def cen_train(self, client_id=-1):
         train_dataset, eval_dataset = self.get_dataset(client_id)
@@ -532,21 +531,20 @@ class BaseTrainer(ABC):
             if not self.debug:
                 metric_save(self, self.T, self.logger)
             self.logger.critical(f"Train done, Please Eval and Test in {self.T.checkpoint_dir}")
-            return
+        else:
+            self.logger.critical("Final Test Start")
+            self.deserialize_model(self.best_glo_params)
+            _, test_dataset = self.get_dataset(-1, "test")
+            test_result = self.eval_fun(test_dataset)
+            global_test_best_metric = test_result["eval_result"]
 
-        self.logger.critical("Final Test Start")
-        self.deserialize_model(self.best_glo_params)
-        _, test_dataset = self.get_dataset(-1, "test")
-        test_result = self.eval_fun(test_dataset)
-        global_test_best_metric = test_result["eval_result"]
+            for metric_name, metric in global_test_best_metric.items():
+                self.global_test_best_metric += f"{metric_name}={metric:.3f}_"
+            self.global_test_best_metric = self.global_test_best_metric[0:-1]
 
-        for metric_name, metric in global_test_best_metric.items():
-            self.global_test_best_metric += f"{metric_name}={metric:.3f}_"
-        self.global_test_best_metric = self.global_test_best_metric[0:-1]
-
-        self.logger.critical(f"{self.F.fl_algorithm.upper()} Test, "
-                             f"Best Model Metric, {self.global_test_best_metric}")
-        self.save_all()
+            self.logger.critical(f"{self.F.fl_algorithm.upper()} Test, "
+                                 f"Best Model Metric, {self.global_test_best_metric}")
+            self.save_all()
 
         self.comm_manager.send(
             Message(
