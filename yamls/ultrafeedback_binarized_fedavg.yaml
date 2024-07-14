@@ -1,14 +1,14 @@
 data_config:
 #  data_name: lcp
   model_max_length: 1024
-  debug_mode: true
+  debug_mode: false
   overwrite_cache: true
 
 federated_config:
   alpha: 0 # 1.0/10.0/0.1
   clients_num: 100
-  rounds: 100
-  sample: 0.02
+  rounds: 50
+  sample: 0.04
 
   log_valid_len:  # also effects in cen
   save_valid_len: 10

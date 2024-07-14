@@ -176,7 +176,7 @@ def build_metric_line(config, times):
 def amend_config(model_args, data_args, training_args, federated_args):
     config = Config(model_args, data_args, training_args, federated_args)
 
-    # load customer config (hard code)
+    # load customer config
     # NOTE: hyper_parameters in config.yaml can overwrite --arg
     root_folder = registry.get("root_folder")
     if config.T.config_path:
@@ -193,9 +193,11 @@ def amend_config(model_args, data_args, training_args, federated_args):
                         continue
                     setattr(args, k, v)
 
+    role = config.F.role
+    registry.register(config.F.role, "role")
     # set training path
     config.T.output_dir = os.path.join(config.T.output_dir, config.D.task_name)
-    make_sure_dirs(config.T.output_dir)
+    make_sure_dirs(config.T.output_dir, role)
     if not config.T.eval_name:
         config.T.eval_name = config.T.metric_name
 
@@ -209,10 +211,10 @@ def amend_config(model_args, data_args, training_args, federated_args):
             config.D.cache_dir = os.path.join(
                 cache_dir, f"cached_{config.M.model_type}_centralized"
             )
-    make_sure_dirs(config.D.cache_dir)
+    make_sure_dirs(config.D.cache_dir, role)
 
     config.T.save_dir = os.path.join(config.T.output_dir, config.F.fl_algorithm.lower())
-    make_sure_dirs(config.T.save_dir)
+    make_sure_dirs(config.T.save_dir, role)
     # config.T.checkpoint_dir = os.path.join(config.T.save_dir, "saved_model")
     # make_sure_dirs(config.T.checkpoint_dir)
 
@@ -253,7 +255,7 @@ def amend_config(model_args, data_args, training_args, federated_args):
     elif phase == "train":
         config.T.checkpoint_dir = os.path.join(config.T.save_dir,
                                                f"{times}_{config.M.model_type}_{config.M.tuning_type}/")
-        os.makedirs(config.T.checkpoint_dir, exist_ok=True)
+        make_sure_dirs(config.T.checkpoint_dir, role)
         if config.F.save_valid_len:
             # only saving model parameters during training
             config.T.checkpoint_opt_file = None

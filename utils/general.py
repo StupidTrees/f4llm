@@ -17,7 +17,9 @@ import torch
 from peft import get_peft_model_state_dict
 from collections import Counter
 import torch.nn.functional as F
+
 from utils.constants import petuning_type
+from utils.register import registry
 
 
 def pickle_read(path, read_format="rb"):
@@ -54,15 +56,18 @@ def write_json(obj, path_file):
 
 def file_write(line, path, mode):
     with open(path, mode) as file:
-        file.write(line+"\n")
+        file.write(line + "\n")
 
 
-def make_sure_dirs(path):
+def make_sure_dirs(path, role="server"):
     """Create dir if not exists
 
     Args:
         path (str): path
+        role (str): sign
     """
+    if role == "client":
+        return
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
     return path
@@ -110,7 +115,7 @@ def get_memory_usage():
 
 def LoadBalanceSampling(target, split_size):
     chunk_size = int(len(target) // split_size)
-    result = [target[x:x+chunk_size] for x in range(0, len(target), chunk_size)]
+    result = [target[x:x + chunk_size] for x in range(0, len(target), chunk_size)]
 
     if len(result) == split_size + 1:
         for i, j in enumerate(result[-1]):
@@ -156,7 +161,7 @@ def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0
 def get_parameter_number(net):
     total_num = sum(p.numel() for p in net.parameters())
     trainable_num = sum(p.numel() for p in net.parameters() if p.requires_grad)
-    return {'Total': round(total_num/1e6, 4), 'Trainable': round(trainable_num/1e6, 4)}
+    return {'Total': round(total_num / 1e6, 4), 'Trainable': round(trainable_num / 1e6, 4)}
 
 
 def is_petuning(tuning_type):
@@ -209,12 +214,12 @@ def run_process(proc):
 
 
 def end_log(fun):
-
     def wapper(handler_or_trainer, training_config, logger):
         if training_config.local_rank <= 0:
             logger.info(f"see training logs --> {training_config.metric_log_file}")
             logger.info(f"see training results --> {training_config.metric_file}")
             return fun(handler_or_trainer, training_config, logger)
+
     return wapper
 
 
@@ -281,7 +286,7 @@ def compute_energy(model, tokenizer, new_data, temperature=1.0, top_k=10):
             # 计算能量值
             energy = -torch.sum(torch.log(softmax_values)) / temperature
             energies.append(energy.item())
-        energy_value = sum(energies)/len(energies) # 长度是否是个问题？
+        energy_value = sum(energies) / len(energies)  # 长度是否是个问题？
         energy_dps.append((dp, energy_value))
     # 返回能量值列表
     return energy_dps
