@@ -215,8 +215,6 @@ def amend_config(model_args, data_args, training_args, federated_args):
 
     config.T.save_dir = os.path.join(config.T.output_dir, config.F.fl_algorithm.lower())
     make_sure_dirs(config.T.save_dir, role)
-    # config.T.checkpoint_dir = os.path.join(config.T.save_dir, "saved_model")
-    # make_sure_dirs(config.T.checkpoint_dir)
 
     # set phase
     if config.T.zero_test:
@@ -348,7 +346,7 @@ def build_config():
                 f"Total Eval Batch: {config.T.eval_batch_size * config.T.world_size}, "
                 f"Accumulation Steps: {config.T.gradient_accumulation_steps}, "
                 f"GPU Num: {config.T.world_size}, Distributed: {bool(config.T.local_rank != -1)}, "
-                f"f16: {config.T.fp16}, bf16: {config.T.bf16}")  # bf16 and fp16
+                f"f16: {config.T.fp16}, bf16: {config.T.bf16}, seed: {config.T.seed}")  # bf16 and fp16
     logger.info(f"TrainBaseInfo: {metric_line}")
 
     return config

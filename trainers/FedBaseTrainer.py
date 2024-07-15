@@ -49,9 +49,11 @@ class BaseTrainer(ABC):
         self.debug = registry.get("debug")
 
     def _build_data(self):
+        self.logger.info(f"{self.role} building dataset ...")
         self.data = registry.get_data_class(self.D.task_name)()
 
     def _build_model(self):
+        self.logger.info(f"{self.role} building model ...")
         self.model = registry.get_model_class(self.M.model_type)(
             task_name=self.D.task_name
         ).build_model()
@@ -99,6 +101,7 @@ class BaseTrainer(ABC):
         self.eval_args.predict_with_generate = True
 
     def _build_selections(self):
+        # TODO 添加激励未参加用户的采样方式
         self.selections = []
         for i in range(self.F.rounds):
             self.selections.append(random.sample(
@@ -106,15 +109,39 @@ class BaseTrainer(ABC):
                 self.F.client_num_per_round
             ))
 
-    def _before_training(self):
+    def _build_communicators(self):
+        if self.is_fl:
+            self.logger.info(f"{self.role} building communicators ...")
+            if self.role == "server":
+                self.logger.debug(f"server build communicator")
+                self.comm_manager = gRPCCommunicationManager(
+                    ip=self.F.server_ip,
+                    port=self.F.server_port,
+                    max_connection_num=self.F.num_sub
+                )
+            else:
+                time.sleep(5)  # wait for server
+                self.logger.debug(f"subserver {self.F.client_name} build communicator")
+                self.comm_manager = gRPCCommunicationManager(
+                    ip=self.F.client_ip,
+                    port=self.F.client_port,
+                    max_connection_num=1,
+                )
+                self.comm_manager.add_communicators(
+                    communicator_id=self.F.server_ip,
+                    communicator_address='{}:{}'.format(self.F.server_ip, self.F.server_port)
+                )
+        else:
+            self.logger.info("local or central training")
 
-        self.logger.info(f"{self.role} set seed {self.T.seed}")
+    def _before_training(self):
+        # set seed
         setup_seed(self.T.seed)
 
-        self.logger.info(f"{self.role} building dataset ...")
+        # build dataset and dataloader
         self._build_data()
 
-        self.logger.info(f"{self.role} building model ...")
+        # build federated model
         self._build_model()
 
         # build metric
@@ -123,35 +150,30 @@ class BaseTrainer(ABC):
         # global model
         self.best_glo_params = self.serialize_model_parameters()
 
-        # build client selection before hg trainer
+        # build client selection before building loc trainer
         self._build_selections()
 
         # build communicators
-        self.logger.info(f"{self.role} building communicators ...")
         self._build_communicators()
 
-    def _build_communicators(self):
-        if self.role == "server":
-            self.logger.debug(f"server build communicator")
-            self.comm_manager = gRPCCommunicationManager(
-                ip=self.F.server_ip,
-                port=self.F.server_port,
-                max_connection_num=self.F.num_sub
-            )
+    def run(self):
+        self.logger.critical(f" {self.role} {self.phase.upper()} START")
+        if self.phase == "train":
+            self.train()
+        elif self.phase == "eval":
+            self.eval()
+        elif self.phase == "zst":
+            self.zero_test()
         else:
-            time.sleep(10)  # wait for server
-            self.logger.debug(f"subserver {self.F.client_name} build communicator")
-            self.comm_manager = gRPCCommunicationManager(
-                ip=self.F.client_ip,
-                port=self.F.client_port,
-                max_connection_num=1,
-            )
-            self.comm_manager.add_communicators(
-                communicator_id=self.F.server_ip,
-                communicator_address='{}:{}'.format(self.F.server_ip, self.F.server_port)
-            )
+            self.predict()
 
-    def _server_join(self):
+    def train(self):
+        if self.is_fl:
+            self.server_run() if self.role == "server" else self.client_run()
+        else:
+            self.cen_train()
+
+    def server_join(self):
         client_num = 0
         while client_num < self.F.num_sub:
             msg = self.comm_manager.receive()
@@ -165,24 +187,14 @@ class BaseTrainer(ABC):
                 self.logger.info(list(self.comm_manager.communicators.keys()))
         self.logger.debug("all subserver connect")
 
-    def _client_join(self):
-        self.comm_manager.send(
-            Message(
-                message_type=100,
-                sender=self.F.client_name,
-                receiver=[self.F.server_ip],
-                content={
-                    'client_ip': self.F.client_ip,
-                    'client_port': self.F.client_port
-                }
-            )
-        )
-
     def server_run(self):
-        self._server_join()
+        self.server_join()
 
         while self.round < self.F.rounds:
-            self.client_selection()
+            # TODO server select client
+            self.client_ids = self.selections[self.round]
+            self.metric_log["train_logs"].append([0.0 for _ in range(self.F.client_num_in_total)])
+            self.logger.critical(f"Round {self.round + 1} start, Selected Clients: {self.client_ids}")
             balance_sampling = LoadBalanceSampling(self.client_ids, self.F.num_sub)
             client_ids = {}
             for i in range(self.F.num_sub):
@@ -195,7 +207,8 @@ class BaseTrainer(ABC):
                     receiver=list(self.comm_manager.communicators.keys()),
                     content={
                         'model': self.model_parameters,
-                        'client_ids': client_ids
+                        'client_ids': client_ids,
+                        'round': self.round
                     }
                 )
             )
@@ -210,42 +223,45 @@ class BaseTrainer(ABC):
                         params_list.append(params)
                         loss_list.append(msg.content['loss'][client_id])
                         self.metric_log["train_logs"][self.round][client_id] = msg.content['loss'][client_id]
+
             # aggregation
             self.global_update(params_list, loss_list)
 
         self.on_server_end()
 
+    def client_join(self):
+        self.comm_manager.send(
+            Message(
+                message_type=100,
+                sender=self.F.client_name,
+                receiver=[self.F.server_ip],
+                content={
+                    'client_ip': self.F.client_ip,
+                    'client_port': self.F.client_port
+                }
+            )
+        )
+
     def client_run(self):
-        self._client_join()
+        # client join in federated learning
+        self.client_join()
+
         while True:
             msg = self.comm_manager.receive()
             if msg.message_type == 101:
-                # self.test()
+                # quit federated learning
                 self.on_client_end()
                 break
             elif msg.message_type == 200:
                 model_parameters = msg.content['model']
+                self.round = msg.content['round']
+                # TODO 直接传递list
                 client_ids = msg.content['client_ids'][int(self.F.client_name)]
-                self.local_update(client_ids, model_parameters)
-
-    def run(self):
-        self.logger.critical(f" {self.role} {self.phase.upper()} START")
-        if self.phase == "train":
-            self.train()
-        elif self.phase == "eval":
-            self.eval()
-        elif self.phase == "zst":
-            self.zero_test()
-        else:
-            self.predict()
-
-    def train(self):
-        if self.role == "server":
-            self.server_run()
-        else:
-            self.client_run()
+                self.local_process(client_ids, model_parameters)
 
     def cen_train(self, client_id=-1):
+
+        # get local train and eval dataset
         train_dataset, eval_dataset = self.get_dataset(client_id)
 
         # set some parameters
@@ -275,23 +291,10 @@ class BaseTrainer(ABC):
         )
         train_op.train()
 
-    def fed_train(self):
-
-        # while self.round < self.F.rounds:
-        #     self.client_selection()
-        #     self.local_update()
-        #     self.global_update()
-        ...
-
-    def client_selection(self):
-        self.client_ids = self.selections[self.round]
-        self.metric_log["train_logs"].append([0.0 for _ in range(self.F.client_num_in_total)])
-        self.logger.critical(f"Round {self.round + 1} start, Selected Clients: {self.client_ids}")
-
-    def local_update(self, client_ids, model_parameters):
+    def local_process(self, client_ids, model_parameters):
         param_list, loss_list = {}, {}
         for idx in client_ids:
-            train_loss = self._train_alone(
+            train_loss = self.local_train(
                 idx=idx,
                 model_parameters=model_parameters
             )
@@ -318,9 +321,9 @@ class BaseTrainer(ABC):
             )
         )
 
-    def _train_alone(self, idx, model_parameters, *args, **kwargs):
-        self.logger.debug(f"\n{'=' * 35}\n>>> Subserver {self.F.client_name} with "
-                          f"Client {idx} Trains in Round {self.round + 1} <<<\n{'=' * 35}")
+    def local_train(self, idx, model_parameters, *args, **kwargs):
+        self.logger.debug(f"\n{'=' * 35}\n>>> Subserver={self.F.client_name}_"
+                          f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 35}")
 
         self.deserialize_model(model_parameters)
         train_dataset, eval_dataset = self.get_dataset(idx)
@@ -344,8 +347,8 @@ class BaseTrainer(ABC):
         del train_op
 
         train_loss = round(train_result.training_loss, 3)
-        self.logger.info(f">>> Subserver {self.F.client_name} Client {idx} Train with lr "
-                         f"{self.T.learning_rate*10000:.2f}e-4, Loss: {train_loss}")
+        self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
+                         f"{self.T.learning_rate*10000:.2f}e-4_Loss={train_loss}")
         return train_loss
 
     def global_update(self, param_list, loss_list):
@@ -360,8 +363,8 @@ class BaseTrainer(ABC):
 
         this_round_loss = sum(loss_list)/len(loss_list)
         self.logger.warning(
-            f"{self.F.fl_algorithm}-Round {self.round} with {len(param_list)} client updates aggregation, "
-            f"This Round Evals: {should_eval}, This Round Save: {should_save}, This Round Loss: {this_round_loss:.3f}"
+            f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(param_list)}_"
+            f"Evals={should_eval}_Save={should_save}_Loss={this_round_loss:.3f}"
         )
 
         # Global Aggregation
@@ -369,14 +372,13 @@ class BaseTrainer(ABC):
             weights = [self.data.train_examples_num_dict[client_id] for client_id in self.client_ids]
         else:
             weights = None
+
         serialized_parameters = self.aggregator(param_list, weights)
         self.deserialize_model(serialized_parameters)
 
         if should_eval:
+            # TODO 启动额外程序进行推理
             self.fed_valid()
-            # test
-            # self.on_train_end()
-            # self.deserialize_model(serialized_parameters)
 
         if should_save:
             self.model_save(serialized_parameters)
@@ -385,6 +387,7 @@ class BaseTrainer(ABC):
         self.model_parameters = copy.deepcopy(serialized_parameters)
 
     def fed_valid(self, idx=-1):
+        # TODO 并行进行模型更新
         self.logger.info(f"Round {self.round} Valid Start")
         _, eval_dataset = self.get_dataset(idx)
 
