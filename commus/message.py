@@ -108,12 +108,19 @@ class Message(object):
         federated learning context.
 
         Attributes:
-            message_type (int): The type of the message, indicating its purpose (e.g., connection establishment, model update). 100: Build federated learning connection. 101: End federated learning connection. 200: Update model parameters. 300: Transfer metrics.
+            message_type (int): The type of the message, indicating its purpose (e.g., connection establishment, model update).
             sender (str): Identifier of the sender.
             receiver (str | list): Identifier(s) of the receiver(s). Can be a single ID or a list of IDs.
             content (Any): The content of the message, which can be a simple message or a complex structure like model parameters.
             communication_round (int): The current round of communication in the federated learning process.
             timestamp (float): The timestamp of the message creation.
+
+        Notes: The message types are defined as follows:
+            - 100: Build federated learning connection.
+            - 101: End federated learning connection.
+            - 200: Update model parameters (content should contain a 'model' key with model parameters).
+            - 300: Transfer metrics.
+
 
     """
 
@@ -179,7 +186,7 @@ class Message(object):
         """
             Get the content of the message.
         Returns:
-            str | dict: The content of the message
+            Any: The content of the message
 
         """
         return self._content
@@ -229,7 +236,7 @@ class Message(object):
         else:
             return self.communication_round < other.communication_round
 
-    def create_by_type(self, value: Any, nested: bool = False) -> gRPC_communication_manager_pb2.MsgValue:
+    def _create_by_type(self, value: Any, nested: bool = False) -> gRPC_communication_manager_pb2.MsgValue:
         """
             Create a protobuf message object based on the type of the input value.
         Args:
@@ -249,7 +256,7 @@ class Message(object):
                 key_type = 'int'
             for key in value.keys():
                 m_dict.dict_value[key].MergeFrom(
-                    self.create_by_type(value[key], nested=True))
+                    self._create_by_type(value[key], nested=True))
             if nested:
                 msg_value = gRPC_communication_manager_pb2.MsgValue()
                 if key_type == 'string':
@@ -262,8 +269,7 @@ class Message(object):
         elif isinstance(value, list) or isinstance(value, tuple):
             m_list = gRPC_communication_manager_pb2.mList()
             for each in value:
-                m_list.list_value.append(self.create_by_type(each,
-                                                             nested=True))
+                m_list.list_value.append(self._create_by_type(each, nested=True))
             if nested:
                 msg_value = gRPC_communication_manager_pb2.MsgValue()
                 msg_value.list_msg.MergeFrom(m_list)
@@ -289,7 +295,7 @@ class Message(object):
             else:
                 return m_single
 
-    def transform_to_list(self, x: Any) -> Any:
+    def _transform_to_list(self, x: Any) -> Any:
         """
             Transform the input data into a list format.
         Args:
@@ -300,24 +306,24 @@ class Message(object):
 
         Examples:
             >>> message = Message(content='model')
-            >>> message.transform_to_list(message.content)
+            >>> message._transform_to_list(message.content)
             'model'
             >>> message = Message(content=[(1, 2, 3), (2, 3, 4), (3, 4, 5)])
-            >>> message.transform_to_list(message.content)
+            >>> message._transform_to_list(message.content)
             [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
             >>> message = Message(content={'model': [1, 2, 3]})
-            >>> message.transform_to_list(message.content)
+            >>> message._transform_to_list(message.content)
             {'model': [1, 2,3]}
             >>> message = Message(content={'model': np.array([1, 2, 3])})
-            >>> message.transform_to_list(message.content)
+            >>> message._transform_to_list(message.content)
             {'model': b'gASVoAAAAAAAAACMFW51bXB5LmNvcmUubXVsdGlhcnJheZSMDF9yZWNvbnN0cnVjdJSTlIwFbnVtcHmUjAduZGFycmF5lJOUSwCFlEMBYpSHlFKUKEsBSwOFlGgDjAVkdHlwZZSTlIwCaTiUiYiHlFKUKEsDjAE8lE5OTkr/////Sv////9LAHSUYolDGAEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAJR0lGIu'}
 
         """
         if isinstance(x, list) or isinstance(x, tuple):
-            return [self.transform_to_list(each_x) for each_x in x]
+            return [self._transform_to_list(each_x) for each_x in x]
         elif isinstance(x, dict):
             for key in x.keys():
-                x[key] = self.transform_to_list(x[key])
+                x[key] = self._transform_to_list(x[key])
             return x
         else:
             if hasattr(x, 'tolist'):
@@ -325,7 +331,7 @@ class Message(object):
             else:
                 return x
 
-    def build_msg_value(self, value):
+    def _build_msg_value(self, value):
         """
             Build a protobuf message object based on the type of the input value.
         Args:
@@ -338,15 +344,15 @@ class Message(object):
         msg_value = gRPC_communication_manager_pb2.MsgValue()
 
         if isinstance(value, list) or isinstance(value, tuple):
-            msg_value.list_msg.MergeFrom(self.create_by_type(value))
+            msg_value.list_msg.MergeFrom(self._create_by_type(value))
         elif isinstance(value, dict):
             if isinstance(list(value.keys())[0], str):
                 msg_value.dict_msg_string_key.MergeFrom(
-                    self.create_by_type(value))
+                    self._create_by_type(value))
             else:
-                msg_value.dict_msg_int_key.MergeFrom(self.create_by_type(value))
+                msg_value.dict_msg_int_key.MergeFrom(self._create_by_type(value))
         else:
-            msg_value.single_msg.MergeFrom(self.create_by_type(value))
+            msg_value.single_msg.MergeFrom(self._create_by_type(value))
 
         return msg_value
 
@@ -358,6 +364,9 @@ class Message(object):
 
         Returns:
             gRPC_communication_manager_pb2.MessageRequest: The protobuf message object representing the message.
+
+        Notes:
+            Note that this operation might change the content of the message based on the to_list flag!
 
         Examples:
             >>> message = Message(message_type=200, sender='0', receiver='1', content={'model': np.array([1, 2, 3])}, communication_round=0)
@@ -419,19 +428,19 @@ class Message(object):
             }
         """
         if to_list:
-            self.content = self.transform_to_list(self.content)
+            self.content = self._transform_to_list(self.content)
 
         split_message = gRPC_communication_manager_pb2.MessageRequest()  # map/dict
         split_message.msg['message_type'].MergeFrom(
-            self.build_msg_value(self.message_type))
-        split_message.msg['sender'].MergeFrom(self.build_msg_value(self.sender))
+            self._build_msg_value(self.message_type))
+        split_message.msg['sender'].MergeFrom(self._build_msg_value(self.sender))
         split_message.msg['receiver'].MergeFrom(
-            self.build_msg_value(self.receiver))
-        split_message.msg['content'].MergeFrom(self.build_msg_value(
+            self._build_msg_value(self.receiver))
+        split_message.msg['content'].MergeFrom(self._build_msg_value(
             self.content))
-        split_message.msg['communication_round'].MergeFrom(self.build_msg_value(self.communication_round))
+        split_message.msg['communication_round'].MergeFrom(self._build_msg_value(self.communication_round))
         split_message.msg['timestamp'].MergeFrom(
-            self.build_msg_value(self.timestamp))
+            self._build_msg_value(self.timestamp))
         return split_message
 
     def _parse_msg(self, value):
