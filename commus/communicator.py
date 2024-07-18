@@ -176,6 +176,10 @@ class gRPCCommunicationManager(object):
         """
         return self._communicators
 
+    @communicators.setter
+    def communicators(self, value):
+        self._communicators = value
+
     def serve(self, max_workers: int, ip: str, port: str, options: list | None):
         """
         Start the gRPC server with the specified configurations.
@@ -237,7 +241,7 @@ class gRPCCommunicationManager(object):
         else:
             raise TypeError(f"The type of communicator_address ({type(communicator_address)}) is not supported")
 
-    def get_communicators(self, communicator_id: str | list | None):
+    def get_communicators(self, communicator_id: str | list | None = None):
         """
         Get the address of a specific communicator (client) or all communicators
         Args:
