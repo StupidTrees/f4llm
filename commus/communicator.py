@@ -220,6 +220,15 @@ class gRPCCommunicationManager(object):
         Returns:
             None
 
+        Examples:
+            >>> comm_manager = gRPCCommunicationManager(max_connection_num=2)
+            >>> comm_manager.add_communicators('client1', {'ip':'127.0.0.1', 'port':'50052'})
+            >>> comm_manager.communicators
+            {'client1': '127.0.0.1:50052'}
+            >>> comm_manager.add_communicators('client2', '127.0.0.1:50053')
+            >>> comm_manager.communicators
+            {'client1': '127.0.0.1:50052', 'client2': '127.0.0.1:50053'}
+
         """
         if isinstance(communicator_address, dict):
             self._communicators[communicator_id] = f"{communicator_address['ip']}:{communicator_address['port']}"
