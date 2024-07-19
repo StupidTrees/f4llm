@@ -127,7 +127,7 @@ class BaseTrainer(ABC):
                     port=self.F.client_port,
                     max_connection_num=1,
                 )
-                self.comm_manager.add_communicators(
+                self.comm_manager.add_communicator(
                     communicator_id=self.F.server_ip,
                     communicator_address='{}:{}'.format(self.F.server_ip, self.F.server_port)
                 )
@@ -180,7 +180,7 @@ class BaseTrainer(ABC):
             self.logger.info(f"Subserver {msg.sender} joined in.")
             if msg.message_type == 100:
                 client_num += 1
-                self.comm_manager.add_communicators(
+                self.comm_manager.add_communicator(
                     communicator_id=msg.sender,
                     communicator_address=f"{msg.content['client_ip']}:{msg.content['client_port']}")
                 self.logger.info(f"Subserver {msg.sender} joined in.")

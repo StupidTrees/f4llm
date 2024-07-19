@@ -1,7 +1,6 @@
 import unittest
 import numpy as np
 import torch
-from typing import Sequence
 from commus.message import Message
 
 
@@ -27,6 +26,10 @@ It tests several aspects of the Message class, as follows:
 2.6 Parse dict type message
 2.7 Parse numpy array type message
 2.8 Parse torch tensor type message
+
+3. The __lt__ method of the Message class
+4. The default value of the Message class
+5. The count_bytes method of the Message class 
 """
 
 
@@ -38,7 +41,7 @@ class TestMessage(unittest.TestCase):
                 self.assertIn(key, o2, f"Key {key} not found in second dictionary.")
                 value1, value2 = o1[key], o2[key]
                 self.assertNestedDataTypeEqual(value1, value2, places=places, msg=msg, delta=delta)
-        elif isinstance(o1, Sequence) and isinstance(o2, Sequence):
+        elif (isinstance(o1, list) or isinstance(o1, tuple)) and (isinstance(o2, list) or isinstance(o2, tuple)):
             self.assertEqual(len(o1), len(o2))
             length = len(o1)
             for idx in range(length):
@@ -95,7 +98,12 @@ class TestMessage(unittest.TestCase):
         received_msg.parse(request.msg)
         self.assertNestedDataTypeEqual(received_msg.content, msg.content)
 
-        msg.content = {'data': [1, 2, 3], 'loss': 0.0001}
+        msg.content = {0: [1, 2], 1: 1, 2: 0.00001, 3: "test"}
+        request = msg.transform(to_list=True)
+        received_msg.parse(request.msg)
+        self.assertNestedDataTypeEqual(received_msg.content, msg.content)
+
+        msg.content = {'data': [1, 2, 3], 'loss': 0.0001, 'other': 1}
         request = msg.transform(to_list=True)
         received_msg.parse(request.msg)
         self.assertNestedDataTypeEqual(received_msg.content, msg.content)
@@ -113,4 +121,50 @@ class TestMessage(unittest.TestCase):
         msg.content = {'model': {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))}}
         request = msg.transform(to_list=True)
         received_msg.parse(request.msg)
-        self.assertNestedDataTypeEqual(received_msg.content, {'model': {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))}})
+        self.assertNestedDataTypeEqual(
+            received_msg.content, {'model': {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))}}
+        )
+
+        msg.content = None
+        with self.assertRaises(ValueError):
+            msg.transform(to_list=True)
+
+    def test_lt(self):
+        msg1 = Message(
+            message_type=200,
+            sender='0',
+            receiver='1',
+            content=100,
+            communication_round=0
+        )
+        msg2 = Message(
+            message_type=200,
+            sender='0',
+            receiver='1',
+            content=100,
+            communication_round=1
+        )
+        self.assertTrue(msg1 < msg2)
+        msg1.timestamp = 1
+        msg2.timestamp = 1
+        self.assertTrue(msg1 < msg2)
+
+    def test_default_value(self):
+        msg = Message()
+        self.assertEqual(msg.message_type, -1)
+        self.assertEqual(msg.sender, '-1')
+        self.assertEqual(msg.receiver, '-1')
+        self.assertEqual(msg.content, '')
+        self.assertEqual(msg.communication_round, 0)
+
+    def test_count_bytes(self):
+        msg = Message(
+            receiver=['client1', 'client2', 'client3'],
+            content='test',
+
+        )
+        self.assertEqual(msg.count_bytes(), (56, 168))
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -128,7 +128,7 @@ class Message(object):
             self,
             message_type: int = -1,
             sender: str = "-1",
-            receiver: str | list = "-1",
+            receiver: str | list[str] = "-1",
             content: Any = "",
             communication_round: int = 0
     ):
@@ -185,6 +185,7 @@ class Message(object):
     def content(self):
         """
             Get the content of the message.
+
         Returns:
             Any: The content of the message
 
@@ -199,6 +200,7 @@ class Message(object):
     def communication_round(self):
         """
             Get the communication round of the message.
+
         Returns:
             int: The communication round of the message
         """
@@ -212,6 +214,7 @@ class Message(object):
     def timestamp(self):
         """
             Get the timestamp of the message.
+
         Returns:
             float: The timestamp of the message
         """
@@ -224,6 +227,7 @@ class Message(object):
     def __lt__(self, other):
         """
             Compare two messages based on their timestamps and communication rounds.
+
         Args:
             other: Another message object to compare with.
 
@@ -239,6 +243,7 @@ class Message(object):
     def _create_by_type(self, value: Any, nested: bool = False) -> gRPC_communication_manager_pb2.MsgValue:
         """
             Create a protobuf message object based on the type of the input value.
+
         Args:
             value: The input value to be converted to a protobuf message object.
             nested: A flag indicating whether the value is nested within another message object.
@@ -298,6 +303,7 @@ class Message(object):
     def _transform_to_list(self, x: Any) -> Any:
         """
             Transform the input data into a list format.
+
         Args:
             x: The input data to be transformed.
 
@@ -334,6 +340,7 @@ class Message(object):
     def _build_msg_value(self, value):
         """
             Build a protobuf message object based on the type of the input value.
+
         Args:
             value: The input value to be converted to a protobuf message object.
 
@@ -359,6 +366,7 @@ class Message(object):
     def transform(self, to_list: bool = False):
         """
             Transform the message into a protobuf message object for transmission.
+
         Args:
             to_list(bool): A flag indicating whether to transform the message's content into a list format.
 
@@ -446,6 +454,7 @@ class Message(object):
     def _parse_msg(self, value):
         """
             Parse the input value based on its type.
+
         Args:
             value: The input value to be parsed.
 
@@ -470,6 +479,7 @@ class Message(object):
     def _parse_model(self, value):
         """
             Parse the input value as a model.
+
         Args:
             value: The input value to be parsed.
 
@@ -482,11 +492,12 @@ class Message(object):
                 k: self._parse_model(value[k]) for k in value.keys()
             }
         else:
-            return pickle.loads(base64.b64decode(value))
+            return self._param_deserializer(value)
 
     def parse(self, received_msg):
         """
-            Parse the received message into its components
+            Parse the received message into its components.
+
         Args:
             received_msg: The received message to be parsed.
 
@@ -515,7 +526,8 @@ class Message(object):
 
     def count_bytes(self):
         """
-            Calculate the message bytes to be sent/received
+            Calculate the message bytes to be sent/received.
+
         Returns:
             tuple: Tuple of bytes of the message to be sent and received.
 

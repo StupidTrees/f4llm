@@ -36,7 +36,7 @@ Example usage:
     # Start the server to listen for client connections
     comm_manager.serve()
     # Add a communicator (client)
-    comm_manager.add_communicators('server', {'ip': '127.0.0.1', 'port': '50052'})
+    comm_manager.add_communicator('server', {'ip': '127.0.0.1', 'port': '50052'})
     # Send a message to a specific client
     message = Message(message_type=100, content={'ip': '127.0.0.1', 'port': '50051'})
     comm_manager.send(message, 'server')
@@ -92,7 +92,7 @@ class gRPCCommunicationManager(object):
             self._compression_method = grpc.Compression.Gzip
         else:
             self._compression_method = grpc.Compression.NoCompression
-        self._gRPC_server = self.serve(
+        self._gRPC_server = self._serve(
             max_workers=max_connection_num,
             ip=ip,
             port=port,
@@ -104,72 +104,58 @@ class gRPCCommunicationManager(object):
     def ip(self):
         """
         Get the IP address of the gRPC server.
+
         Returns:
             str: The IP address of the gRPC server.
         """
         return self._ip
 
-    @ip.setter
-    def ip(self, value):
-        self._ip = value
-
     @property
     def port(self):
         """
         Get the port number of the gRPC server.
+
         Returns:
             str: The port number of the gRPC server.
         """
         return self._port
 
-    @port.setter
-    def port(self, value):
-        self._port = value
-
     @property
     def max_connection_num(self):
         """
         Get the maximum number of concurrent connections the server will accept.
+
         Returns:
             int: The maximum number of concurrent connections the server will accept.
         """
         return self._max_connection_num
 
-    @max_connection_num.setter
-    def max_connection_num(self, value):
-        self._max_connection_num = value
-
     @property
     def gRPC_config(self):
         """
         Get the configuration options for the gRPC server.
+
         Returns:
             dict: The configuration options for the gRPC server.
 
         """
         return self._gRPC_config
 
-    @gRPC_config.setter
-    def gRPC_config(self, value):
-        self._gRPC_config = value
-
     @property
     def compression_method(self):
         """
         Get the compression method used by the gRPC server.
+
         Returns:
             grpc.Compression: The compression method used by the gRPC server.
         """
         return self._compression_method
 
-    @compression_method.setter
-    def compression_method(self, value):
-        self._compression_method = value
-
     @property
     def communicators(self):
         """
         Get the dictionary of client communicators.
+
         Returns:
             dict: A dictionary of client communicators, mapping client IDs to their addresses.
 
@@ -180,9 +166,10 @@ class gRPCCommunicationManager(object):
     def communicators(self, value):
         self._communicators = value
 
-    def serve(self, max_workers: int, ip: str, port: str, options: list | None):
+    def _serve(self, max_workers: int, ip: str, port: str, options: list | None):
         """
         Start the gRPC server with the specified configurations.
+
         Args:
             max_workers: maximum number of concurrent connections the server will accept
             ip: IP address on which the gRPC server will listen
@@ -208,28 +195,33 @@ class gRPCCommunicationManager(object):
     def terminate_server(self):
         """
         Stop the gRPC server and terminate the server process.
+
         Returns:
             None
 
         """
         self._gRPC_server.stop(grace=None)
 
-    def add_communicators(self, communicator_id: str, communicator_address: dict | str):
+    def add_communicator(self, communicator_id: str, communicator_address: dict | str):
         """
         Add a communicator (client) to the server's list of communicators.
+
         Args:
             communicator_id: The ID of the communicator (client)
-            communicator_address: The address of the communicator (client), specified as a dictionary or string.
+            communicator_address: The address of the communicator (client), specified as a dictionary (containing key 'ip' and 'port') or string (formating as 'ip:port').
+
+        Raises:
+            TypeError: If the type of communicator_address is not supported.
 
         Returns:
             None
 
         Examples:
             >>> comm_manager = gRPCCommunicationManager(max_connection_num=2)
-            >>> comm_manager.add_communicators('client1', {'ip':'127.0.0.1', 'port':'50052'})
+            >>> comm_manager.add_communicator('client1', {'ip':'127.0.0.1', 'port':'50052'})
             >>> comm_manager.communicators
             {'client1': '127.0.0.1:50052'}
-            >>> comm_manager.add_communicators('client2', '127.0.0.1:50053')
+            >>> comm_manager.add_communicator('client2', '127.0.0.1:50053')
             >>> comm_manager.communicators
             {'client1': '127.0.0.1:50052', 'client2': '127.0.0.1:50053'}
 
@@ -243,7 +235,8 @@ class gRPCCommunicationManager(object):
 
     def get_communicators(self, communicator_id: str | list | None = None):
         """
-        Get the address of a specific communicator (client) or all communicators
+        Get the address of a specific communicator (client) or all communicators.
+
         Args:
             communicator_id: The ID of the communicator (client) to retrieve the address for, or None to get all communicators.
 
@@ -265,6 +258,7 @@ class gRPCCommunicationManager(object):
     def _create_stub(self, receiver_address: str):
         """
         Create a gRPC stub for the specified receiver address.
+
         Args:
             receiver_address: The address of the receiver to create the stub for.
 
@@ -284,6 +278,7 @@ class gRPCCommunicationManager(object):
     def _send(self, receiver_address: str, message: Message, max_retry: int = 3):
         """
         Send a message to the specified receiver address with optional retry mechanism.
+
         Args:
             receiver_address: The address of the receiver to send the message to.
             message: The message to send.
@@ -304,7 +299,6 @@ class gRPCCommunicationManager(object):
                 channel.close()
                 success_flag = True
             except grpc._channel._InactiveRpcError as error:
-                print(error)
                 attempts += 1
                 time.sleep(retry_interval)
                 retry_interval *= 2
@@ -312,10 +306,13 @@ class gRPCCommunicationManager(object):
                 channel.close()
             if success_flag:
                 break
+            else:
+                raise ConnectionError(f"Failed to send message to {receiver_address}")
 
     def send(self, message: Message, receiver: str | list | None = None):
         """
         Send a message to the specified receiver(s).
+
         Args:
             message: The message to send.
             receiver: The ID of the receiver(s) to send the message to, or None to broadcast to all communicators.
@@ -339,6 +336,7 @@ class gRPCCommunicationManager(object):
     def receive(self):
         """
         Receive a message from a client.
+
         Returns:
             Message: The received message from the client.
 
