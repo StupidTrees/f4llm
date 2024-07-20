@@ -1,13 +1,12 @@
 
-from typing import Any, Dict, List, Optional, Tuple, Union
-
 import torch
 from torch import nn
 from torch.utils.data import Dataset
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from transformers import Trainer
-from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.trainer_utils import PredictionOutput
+from transformers.deepspeed import is_deepspeed_zero3_enabled
 
 
 def build_generator_config(args, gen_kwargs):
@@ -29,7 +28,7 @@ def build_generator_config(args, gen_kwargs):
     return gen_kwargs
 
 
-class LocalBaseTrainer(Trainer):
+class LocalSFTTrainer(Trainer):
     def evaluate(
         self,
         eval_dataset: Optional[Dataset] = None,

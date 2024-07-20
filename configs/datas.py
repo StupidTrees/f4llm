@@ -24,6 +24,9 @@ class DataTrainingArguments:
     data_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
+    template_name: Optional[str] = field(
+        default="llama_alpaca", metadata={"help": "The name of the data template for tuning."}
+    )
     cache_dir: Optional[str] = field(
         default=None, metadata={"help": "The save dir of the tokenized dataset."}
     )
@@ -38,11 +41,20 @@ class DataTrainingArguments:
         default=False, metadata={"help": "whether to use debug mode"}
     )
     model_max_length: Optional[int] = field(
-        default=784,
+        default=1024,
         metadata={
             "help": (
                 "The maximum total input sequence length after tokenization. Sequences longer "
                 "than this will be truncated, sequences shorter will be padded."
+            )
+        },
+    )
+    max_prompt_length: Optional[int] = field(
+        default=128,
+        metadata={
+            "help": (
+                "The maximum total prompt length after tokenization. Sequences longer "
+                "than this will be truncated (including instruction)."
             )
         },
     )
@@ -126,20 +138,6 @@ class DataTrainingArguments:
         },
     )
 
-    # other paper prompt_id
-    prompt_id: Optional[int] = field(
-        default=None,
-    )
-    used_seed: Optional[int] = field(
-        default=42,
-        metadata={
-            "help": (
-                "used for prompt_id=-1, client has its local instructions."
-                "valid value [1, 10, 42, 3407]"
-            )
-        }
-    )
-
     def __post_init__(self):
 
         if self.task_name is None:
@@ -162,6 +160,11 @@ class DataTrainingArguments:
                 self.partition_dataset_path = os.path.join(
                     self.partition_dataset_path, f"{self.task_name}_partition.pkl"
                 )
+
+        if self.data_name is None:
+            self.data_name = self.task_name
+        else:
+            self.data_name = self.data_name.lower()
 
         if self.val_max_target_length is None:
             self.val_max_target_length = self.model_max_length

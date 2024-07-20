@@ -6,46 +6,14 @@ import random
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Sequence
 from utils.register import registry
+from utils.general import custom_pad_sequence
 from datas.base_data import FedBaseDataManger
+from tools.prompts import all_prompts
 
 IGNORE_INDEX = -100
-PROMPT_DICT = {
-    "prompt_input": (
-        "Below is an instruction that describes a task, paired with an input that provides further context. "
-        "Write a response that appropriately completes the request.\n\n"
-        "## Instruction:\n{instruction}\n## Input:\n{input}\n## Response:\n"
-    ),
-    "prompt_no_input": (
-        "Below is an instruction that describes a task. "
-        "Write a response that appropriately completes the request.\n\n"
-        "## Instruction:\n{instruction}\n## Response:\n"
-    ),
-}
-disc_template = """下面是一个司法法律相关的任务。输出一个适当地完成请求的响应。\n### 输入：{input}\n### 输出："""
 
 
-def custom_pad_sequence(tensor_list, padding_value=-100, left_padding=True):
-    # find the longest len
-    max_length = max(len(t) for t in tensor_list)
-
-    padded_list = []
-    for tensor in tensor_list:
-        padding_count = max_length - len(tensor)
-
-        if left_padding:
-            # left padding
-            padded_tensor = torch.cat([torch.full((padding_count,), padding_value), tensor])
-        else:
-            # right padding
-            padded_tensor = torch.cat([tensor, torch.full((padding_count,), padding_value)])
-        padded_list.append(padded_tensor)
-
-    padded_sequence = torch.stack(padded_list)
-
-    return padded_sequence
-
-
-def _tokenize_fn(strings, tokenizer, mode='train') -> Dict:
+def _tokenize_fn(strings, tokenizer, mode='train'):
     truncation = True if mode == "train" else False
     tokenized_list = [
         tokenizer(
@@ -91,7 +59,7 @@ def preprocess(
     return dict(input_ids=input_ids, labels=labels)
 
 
-@registry.register_data("alpt")
+@registry.register_data("llama_sft")
 class LlaMaGenDataManger(FedBaseDataManger):
     def __init__(self):
         super().__init__()
@@ -103,8 +71,9 @@ class LlaMaGenDataManger(FedBaseDataManger):
 
     def process_examples(self, examples, mode="train", verbose=True):
         instances = []
-
+        PROMPT_DICT = all_prompts[self.data_config.template_name]
         prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
+
         sources = [
             prompt_input.format_map(example) if example.get("input",
                                                             "<noinput>") != "<noinput>" else prompt_no_input.format_map(
@@ -154,10 +123,6 @@ class LlaMaGenDataManger(FedBaseDataManger):
                 labels = custom_pad_sequence(labels, padding_value=self.tokenizer.pad_token_id,
                                              left_padding=left_padding)
 
-                # input_ids = torch.nn.utils.rnn.pad_sequence(
-                #     input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
-                # )
-                # labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=-100)
                 return dict(
                     input_ids=input_ids,
                     labels=labels,

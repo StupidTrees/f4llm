@@ -6,7 +6,6 @@ from abc import ABC
 
 import torch
 from torch.utils.data import Dataset
-from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
 from utils.register import registry

@@ -5,7 +5,8 @@ from transformers import TrainerCallback
 from peft import get_peft_model_state_dict, set_peft_model_state_dict
 
 from utils.register import registry
-from utils.general import cosine_learning_rate
+from commus.message import Message
+from utils.general import cosine_learning_rate, LoadBalanceSampling
 from trainers.FedBaseTrainer import BaseTrainer
 
 
@@ -44,10 +45,63 @@ class ScaffoldTrainer(BaseTrainer):
 
         self.F.weight_type = "num"
 
-    def _train_alone(self, idx, model_parameters, *args, **kwargs):
-        self.logger.debug(f"\n{'=' * 35}\n>>> "
-                          f"Client {idx} Trains in Round {self.round + 1}"
-                          f" <<<\n{'=' * 35}")
+    def client_run(self):
+        self.client_join()
+        while True:
+            msg = self.comm_manager.receive()
+            if msg.message_type == 101:
+                # quit federated learning
+                self.on_client_end()
+                break
+            elif msg.message_type == 200:
+                model_parameters = msg.content['model']
+                client_ids = msg.content['client_ids'][int(self.F.client_name)]
+                auxiliary_model_list = msg.content['auxiliary_model_list'][int(self.F.client_name)]
+
+                # self.logger.debug(auxiliary_model_list)
+                # server传输的时候还是好好的 {client_id: {para_name: tensor}} 但是client接受后tensor成乱码
+                # 全是乱码 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                # AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJU7AAAAAAAAAJSFlFKUSwBNABBLEIaUSxBLAYaUiYwLY29sbGVjdGlvbnOU
+                # jAtPcmRlcmVkRGljdJSTlClSlHSUUpQu
+
+                global_auxiliary = msg.content['global_auxiliary']
+                self.round = msg.content['round']
+                self.local_process(client_ids, model_parameters, auxiliary_model_list, global_auxiliary)
+
+    def local_process(self, client_ids, model_parameters, auxiliary_model_list, global_auxiliary):
+        param_list, loss_list = {}, {}
+        auxiliary_delta_dict_list = {}
+
+        for idx in client_ids:
+            train_loss, auxiliary_model, auxiliary_delta_dict = self.local_train(
+                idx=idx,
+                model_parameters=model_parameters,
+                auxiliary_model_list=auxiliary_model_list,
+                global_auxiliary=global_auxiliary
+            )
+            updated_model_parameters = self.serialize_model_parameters()
+            param_list[idx] = updated_model_parameters
+            loss_list[idx] = train_loss
+            auxiliary_delta_dict_list[idx] = auxiliary_delta_dict
+            auxiliary_model_list[idx] = auxiliary_model
+
+        self.comm_manager.send(
+            Message(
+                message_type=200,
+                sender=self.F.client_name,
+                receiver=[self.F.server_ip],
+                content={
+                    'model': param_list,
+                    'loss': loss_list,
+                    'auxiliary_model_list': auxiliary_model_list,
+                    'auxiliary_delta_dict_list': auxiliary_delta_dict_list
+                }
+            )
+        )
+
+    def local_train(self, idx, model_parameters, auxiliary_model_list, global_auxiliary):
+        self.logger.debug(f"\n{'=' * 37}\n>>> Subserver={self.F.client_name}_"
+                          f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 37}")
 
         self.deserialize_model(model_parameters)
         train_dataset, eval_dataset = self.get_dataset(idx)
@@ -62,7 +116,7 @@ class ScaffoldTrainer(BaseTrainer):
             registry.register("max_steps", max_steps)
 
         # Initialize local Trainer
-        train_op = registry.get_loctrainer(self.F.fl_algorithm)(
+        train_op = registry.get_loctrainer(self.F.local_trainer_name)(
             model=self.model,
             args=self.T,
             train_dataset=train_dataset,
@@ -70,18 +124,67 @@ class ScaffoldTrainer(BaseTrainer):
             data_collator=self.data.coll_fn(self.model),
             compute_metrics=self.metric.calculate_metric,
             global_parameters=model_parameters,
-            local_auxiliary=self.auxiliary_model_list[idx],
-            global_auxiliary=self.global_auxiliary
+            local_auxiliary=auxiliary_model_list[idx],
+            global_auxiliary=global_auxiliary
         )
         train_op.add_callback(scaffold_callback(train_op.correction, self.model))
         train_result = train_op.train()
-        self.auxiliary_model_list[idx], self.auxiliary_delta_dict[idx] = train_op.get_auxiliary_param()
+        auxiliary_model, auxiliary_delta_dict = train_op.get_auxiliary_param()
         del train_op
 
         train_loss = round(train_result.training_loss, 3)
-        self.metric_log["train_logs"][self.round][idx] = train_loss
-        self.logger.info(f">>> Client {idx} Train with lr {self.T.learning_rate*10000:.2f}e-4, Loss: {train_loss}")
-        return train_loss
+        self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
+                         f"{self.T.learning_rate * 10000:.2f}e-4_Loss={train_loss}")
+        return train_loss, auxiliary_model, auxiliary_delta_dict
+
+    def server_run(self):
+        self.server_join()
+
+        while self.round < self.F.rounds:
+            # TODO server select client
+            self.client_ids = self.selections[self.round]
+            self.metric_log["train_logs"].append([0.0 for _ in range(self.F.client_num_in_total)])
+            self.logger.critical(f"Round {self.round + 1} start, Selected Clients: {self.client_ids}")
+            balance_sampling = LoadBalanceSampling(self.client_ids, self.F.num_sub)
+
+            client_ids = {}
+            auxiliary_model_list = {}
+            for i in range(self.F.num_sub):
+                client_ids[i] = balance_sampling[i]
+                auxiliary_model_list[i] = {idx: self.auxiliary_model_list[idx] for idx in client_ids[i]}
+
+            self.comm_manager.send(
+                Message(
+                    message_type=200,
+                    sender="0",
+                    receiver=list(self.comm_manager.communicators.keys()),
+                    content={
+                        'model': self.model_parameters,
+                        'client_ids': client_ids,
+                        'round': self.round,
+                        'auxiliary_model_list': auxiliary_model_list,
+                        'global_auxiliary': self.global_auxiliary
+                    }
+                )
+            )
+
+            num_sub = 0
+            params_list, loss_list = [], []
+            while num_sub < self.F.num_sub:
+                msg = self.comm_manager.receive()
+                if msg.message_type == 200:
+                    num_sub += 1
+                    for client_id, params in msg.content['model'].items():
+                        params_list.append(params)
+                        loss_list.append(msg.content['loss'][client_id])
+                        self.metric_log["train_logs"][self.round][client_id] = msg.content['loss'][client_id]
+                        self.auxiliary_model_list[client_id] = msg.content['auxiliary_model_list'][client_id]
+                        self.auxiliary_delta_dict[client_id] = msg.content['auxiliary_delta_dict_list'][client_id]
+
+            # aggregation
+            self.global_update(params_list, loss_list)
+
+        self.on_server_end()
 
     def aggregator(self, serialized_params_list, weights=None):
         serialized_parameters = self.serialize_model_parameters()

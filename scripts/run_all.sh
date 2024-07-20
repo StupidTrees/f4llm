@@ -42,7 +42,6 @@ deepspeed --include localhost:3 --master_port 10001 main.py \
 --task_name ${task_name} \
 --fl_algorithm ${algorithm} \
 --config_path yamls/${task_name}_${algorithm}.yaml \
---data_name ${task_name} \
 --role server \
 --num_sub 2 \
 --server_ip 127.0.0.1 \
@@ -58,7 +57,6 @@ deepspeed --include localhost:0 --master_port 10002 main.py \
 --task_name ${task_name} \
 --fl_algorithm ${algorithm} \
 --config_path yamls/${task_name}_${algorithm}.yaml \
---data_name ${task_name} \
 --role client \
 --client_name 0 \
 --client_ip 127.0.0.1 \
@@ -74,7 +72,6 @@ deepspeed --include localhost:1 --master_port 10003 main.py \
 --task_name ${task_name} \
 --fl_algorithm ${algorithm} \
 --config_path yamls/${task_name}_${algorithm}.yaml \
---data_name ${task_name} \
 --role client \
 --client_name 1 \
 --client_ip 127.0.0.1 \

@@ -19,9 +19,14 @@ federated_config:
 
   pson: false
 
-  local_trainer_name: fedavg_dpo
+  local_trainer_name: fedadam_dpo
   server_ip: 127.0.0.1
   server_port: 15001
+
+  fedopt_beta1: 0.9
+  fedopt_beta2: 0.99
+  fedopt_eta: 1e-3
+  fedopt_tau: 1e-3
 
 model_config:
   tuning_type: lora # lora/emulator/

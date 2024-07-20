@@ -19,7 +19,7 @@ federated_config:
 
   pson: false
 
-  local_trainer_name: fedavg_dpo
+  local_trainer_name: fedprox_dpo
   server_ip: 127.0.0.1
   server_port: 15001
 
