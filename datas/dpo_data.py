@@ -27,7 +27,7 @@ class DPODataManger(FedBaseDataManger):
         template = all_prompts[self.data_config.template_name]
 
         max_model_length = self.data_config.model_max_length
-        max_prompt_length = self.data_config.model_max_length
+        max_prompt_length = self.data_config.max_prompt_length
         max_response_length = int((max_model_length - 2 * max_prompt_length) / 2)
 
         for idx, example in enumerate(examples):
