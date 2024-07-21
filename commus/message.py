@@ -479,7 +479,7 @@ class Message(object):
         else:
             return value
 
-    def _parse_model(self, value):
+    def parse_model(self, value):
         """
             Parse the input value as a model.
 
@@ -492,10 +492,14 @@ class Message(object):
         """
         if isinstance(value, dict):
             return {
-                k: self._parse_model(value[k]) for k in value.keys()
+                k: self.parse_model(value[k]) for k in value.keys()
             }
+        elif isinstance(value, list):
+            return [self.parse_model(each) for each in value]
+        elif isinstance(value, str):
+            return self._param_deserializer(value.encode())
         else:
-            return self._param_deserializer(value)
+            return value
 
     def parse(self, received_msg):
         """
@@ -528,7 +532,7 @@ class Message(object):
         self.communication_round = self._parse_msg(received_msg['communication_round'])
         self.content = self._parse_msg(received_msg['content'])
         if isinstance(self.content, dict) and "model" in self.content.keys():
-            self.content["model"] = self._parse_model(self.content["model"])
+            self.content["model"] = self.parse_model(self.content["model"])
         self.timestamp = self._parse_msg(received_msg['timestamp'])
 
     def count_bytes(self):
