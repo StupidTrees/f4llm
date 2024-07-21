@@ -133,10 +133,29 @@ class TestMessage(unittest.TestCase):
             'other': {0: [1, 2, 3], 1: 0.0001, 2: {'data': (3.0, 4.0, 0.1), 'loss': 0.09}}
         }
         msg.content = deepcopy(content)
-        print(msg.content)
         request = msg.transform(to_list=True)
         received_msg.parse(request.msg)
-        print(received_msg.content)
+        self.assertNestedDataTypeEqual(received_msg.content, content)
+
+        content = {
+            'data': [1, 2, 3],
+            'model': {
+                'original_model': {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))},
+                'proxy_param': {
+                    0: {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))},
+                    1: {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))},
+                    2: {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))}
+                },
+                'ds': [torch.ones((5, 5)), torch.ones((5, 5))],
+                'float': 0.09,
+                'int': 1
+            },
+            'loss': 0.0001,
+            'other': {0: [1, 2, 3], 1: 0.0001, 2: {'data': (3.0, 4.0, 0.1), 'loss': 0.09}}
+        }
+        msg.content = deepcopy(content)
+        request = msg.transform(to_list=True)
+        received_msg.parse(request.msg)
         self.assertNestedDataTypeEqual(received_msg.content, content)
 
         msg.content = None
