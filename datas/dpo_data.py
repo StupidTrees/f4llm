@@ -28,7 +28,7 @@ class DPODataManger(FedBaseDataManger):
 
         max_model_length = self.data_config.model_max_length
         max_prompt_length = self.data_config.max_prompt_length
-        max_response_length = int((max_model_length - 2 * max_prompt_length) / 2)
+        max_response_length = max_model_length - max_prompt_length
 
         for idx, example in enumerate(examples):
             if 'chosen' not in columns or 'rejected' not in columns:

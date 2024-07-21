@@ -1,4 +1,3 @@
-
 import copy
 import torch
 from transformers import TrainerCallback
@@ -11,7 +10,6 @@ from trainers.FedBaseTrainer import BaseTrainer
 
 
 def get_auxiliary_dict(fed_args, global_parameters):
-
     global_auxiliary = {}
     for key in global_parameters.keys():
         global_auxiliary[key] = torch.zeros_like(global_parameters[key])
@@ -54,17 +52,10 @@ class ScaffoldTrainer(BaseTrainer):
                 self.on_client_end()
                 break
             elif msg.message_type == 200:
-                model_parameters = msg.content['model']
+                model_parameters = msg.content['model']['update']
                 client_ids = msg.content['client_ids'][int(self.F.client_name)]
-                auxiliary_model_list = msg.content['auxiliary_model_list'][int(self.F.client_name)]
-
-                # self.logger.debug(auxiliary_model_list)
-                # server传输的时候还是好好的 {client_id: {para_name: tensor}} 但是client接受后tensor成乱码
-                # 全是乱码 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                # AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJU7AAAAAAAAAJSFlFKUSwBNABBLEIaUSxBLAYaUiYwLY29sbGVjdGlvbnOU
-                # jAtPcmRlcmVkRGljdJSTlClSlHSUUpQu
-
-                global_auxiliary = msg.content['global_auxiliary']
+                auxiliary_model_list = msg.content['model']['auxiliary_model_list'][int(self.F.client_name)]
+                global_auxiliary = msg.content['model']['global_auxiliary']
                 self.round = msg.content['round']
                 self.local_process(client_ids, model_parameters, auxiliary_model_list, global_auxiliary)
 
@@ -85,16 +76,16 @@ class ScaffoldTrainer(BaseTrainer):
             auxiliary_delta_dict_list[idx] = auxiliary_delta_dict
             auxiliary_model_list[idx] = auxiliary_model
 
+        model_part = {"update": param_list, 'auxiliary_model_list': auxiliary_model_list,
+                      'auxiliary_delta_dict_list': auxiliary_delta_dict_list}
         self.comm_manager.send(
             Message(
                 message_type=200,
                 sender=self.F.client_name,
                 receiver=[self.F.server_ip],
                 content={
-                    'model': param_list,
+                    'model': model_part,
                     'loss': loss_list,
-                    'auxiliary_model_list': auxiliary_model_list,
-                    'auxiliary_delta_dict_list': auxiliary_delta_dict_list
                 }
             )
         )
@@ -153,17 +144,17 @@ class ScaffoldTrainer(BaseTrainer):
                 client_ids[i] = balance_sampling[i]
                 auxiliary_model_list[i] = {idx: self.auxiliary_model_list[idx] for idx in client_ids[i]}
 
+            model_part = {"update": copy.deepcopy(self.model_parameters), 'auxiliary_model_list': auxiliary_model_list,
+                          'global_auxiliary': copy.deepcopy(self.global_auxiliary)}
             self.comm_manager.send(
                 Message(
                     message_type=200,
                     sender="0",
                     receiver=list(self.comm_manager.communicators.keys()),
                     content={
-                        'model': self.model_parameters,
+                        'model': model_part,
                         'client_ids': client_ids,
                         'round': self.round,
-                        'auxiliary_model_list': auxiliary_model_list,
-                        'global_auxiliary': self.global_auxiliary
                     }
                 )
             )
@@ -174,12 +165,14 @@ class ScaffoldTrainer(BaseTrainer):
                 msg = self.comm_manager.receive()
                 if msg.message_type == 200:
                     num_sub += 1
-                    for client_id, params in msg.content['model'].items():
+                    for client_id, params in msg.content['model']["update"].items():
                         params_list.append(params)
                         loss_list.append(msg.content['loss'][client_id])
                         self.metric_log["train_logs"][self.round][client_id] = msg.content['loss'][client_id]
-                        self.auxiliary_model_list[client_id] = msg.content['auxiliary_model_list'][client_id]
-                        self.auxiliary_delta_dict[client_id] = msg.content['auxiliary_delta_dict_list'][client_id]
+
+                        self.auxiliary_model_list[client_id] = msg.content['model']['auxiliary_model_list'][client_id]
+                        self.auxiliary_delta_dict[client_id] = \
+                            msg.content['model']['auxiliary_delta_dict_list'][client_id]
 
             # aggregation
             self.global_update(params_list, loss_list)
@@ -193,7 +186,7 @@ class ScaffoldTrainer(BaseTrainer):
             weights = [1.0 for _ in range(len(serialized_params_list))]
 
         total = sum(weights)
-        weights = [weight/total for weight in weights]
+        weights = [weight / total for weight in weights]
         self.logger.info(f"This round clients' weights: {[round(weight, 3) for weight in weights]}")
 
         for key in serialized_parameters.keys():
@@ -204,6 +197,6 @@ class ScaffoldTrainer(BaseTrainer):
 
         for key in self.global_auxiliary.keys():
             delta_auxiliary = sum([self.auxiliary_delta_dict[client_id][key] for client_id in self.client_ids])
-            self.global_auxiliary[key] += delta_auxiliary / self.F.clients_num
+            self.global_auxiliary[key] += delta_auxiliary / len(self.client_ids)
 
         return serialized_parameters

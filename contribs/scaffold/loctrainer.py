@@ -8,9 +8,9 @@ from trainers.LocBaseDPO import LocalDPOTrainer
 
 
 @registry.register_loctrainer("scaffold_sft")
-class ScaffoldLocTrainer(LocalSFTTrainer):
+class ScaffoldSFTLocTrainer(LocalSFTTrainer):
     def __init__(self, global_parameters, local_auxiliary, global_auxiliary, **kwargs):
-        super(ScaffoldLocTrainer, self).__init__(**kwargs)
+        super(ScaffoldSFTLocTrainer, self).__init__(**kwargs)
 
         self.global_state = global_parameters
         self.local_auxiliary = local_auxiliary
@@ -39,9 +39,9 @@ class ScaffoldLocTrainer(LocalSFTTrainer):
 
 
 @registry.register_loctrainer("scaffold_dpo")
-class ScaffoldLocTrainer(LocalDPOTrainer):
+class ScaffoldDPOLocTrainer(LocalDPOTrainer):
     def __init__(self, global_parameters, local_auxiliary, global_auxiliary, **kwargs):
-        super(LocalDPOTrainer, self).__init__(**kwargs)
+        super(ScaffoldDPOLocTrainer, self).__init__(**kwargs)
 
         self.global_state = global_parameters
         self.local_auxiliary = local_auxiliary

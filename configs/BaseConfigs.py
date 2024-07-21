@@ -128,7 +128,7 @@ def debug_mode(config):
         # config.F.log_valid_len = 2
 
     config.D.max_train_samples = (
-        config.D.max_train_samples if config.D.max_train_samples is not None else 32
+        config.D.max_train_samples if config.D.max_train_samples is not None else 16
     )
 
     config.D.max_eval_samples = (

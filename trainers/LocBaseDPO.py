@@ -13,10 +13,6 @@ class LocalDPOTrainer(Trainer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.args.average_log_prob = False
-        self.args.dpo_beta = 0.1
-        self.args.reference_free = False
-
     def get_log_probs(self, logits, labels):
         log_probs = F.log_softmax(logits, dim=-1)
         log_probs_labels = log_probs.gather(dim=-1, index=labels.unsqueeze(-1))

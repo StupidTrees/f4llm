@@ -69,3 +69,13 @@ class TrainArguments(TrainingArguments):
     eval_reuse: bool = field(
         default=True, metadata={"help": "reusing eval results."}
     )
+    # Used for DPO
+    average_log_prob: bool = field(
+        default=False, metadata={"help": "used for dpo."}
+    )
+    reference_free: bool = field(
+        default=False, metadata={"help": "used for dpo."}
+    )
+    dpo_beta: float = field(
+        default=0.1, metadata={"help": "used for dpo."}
+    )

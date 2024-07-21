@@ -174,7 +174,6 @@ class BaseTrainer(ABC):
         client_num = 0
         while client_num < self.F.num_sub:
             msg = self.comm_manager.receive()
-            self.logger.info(f"Subserver {msg.sender} joined in.")
             if msg.message_type == 100:
                 client_num += 1
                 self.comm_manager.add_communicator(
