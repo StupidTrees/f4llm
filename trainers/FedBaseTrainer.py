@@ -13,17 +13,14 @@ from peft import (
     get_peft_model_state_dict,
     set_peft_model_state_dict, load_peft_weights)
 
-import grpc
 from commus.message import Message
-import commus.gRPC_communication_manager_pb2
-import commus.gRPC_communication_manager_pb2_grpc
 from commus.communicator import gRPCCommunicationManager
 
 from utils.register import registry
 from utils.general import metric_save, is_best, pickle_read, run_process
 from utils.general import setup_seed, is_petuning, cosine_learning_rate, LoadBalanceSampling
 from utils.serialization import SerializationTool
-from trainers.LocBaseTrainer import LocalBaseTrainer
+from trainers.LocBaseSFT import LocalSFTTrainer
 from datas.base_data import FedBaseDataset
 
 from contribs.centralized.miscs import CenEndEvalStepCallback, decoded_data
@@ -50,7 +47,7 @@ class BaseTrainer(ABC):
 
     def _build_data(self):
         self.logger.info(f"{self.role} building dataset ...")
-        self.data = registry.get_data_class(self.D.task_name)()
+        self.data = registry.get_data_class(self.D.data_name)()
 
     def _build_model(self):
         self.logger.info(f"{self.role} building model ...")
@@ -157,7 +154,7 @@ class BaseTrainer(ABC):
         self._build_communicators()
 
     def run(self):
-        self.logger.critical(f" {self.role} {self.phase.upper()} START")
+        self.logger.critical(f" {self.role.upper()} {self.phase.upper()} START")
         if self.phase == "train":
             self.train()
         elif self.phase == "eval":
@@ -299,13 +296,6 @@ class BaseTrainer(ABC):
                 model_parameters=model_parameters
             )
             updated_model_parameters = self.serialize_model_parameters()
-
-            if self.F.use_ldp:
-                for key in updated_model_parameters:
-                    updated_model_parameters[key] += \
-                        torch.randn(updated_model_parameters[key].shape).to("cuda") * self.F.ldp_delta
-                    # TODO DP-Noisy Normalized
-
             param_list[idx] = updated_model_parameters
             loss_list[idx] = train_loss
 
@@ -322,8 +312,8 @@ class BaseTrainer(ABC):
         )
 
     def local_train(self, idx, model_parameters, *args, **kwargs):
-        self.logger.debug(f"\n{'=' * 35}\n>>> Subserver={self.F.client_name}_"
-                          f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 35}")
+        self.logger.debug(f"\n{'=' * 37}\n>>> Subserver={self.F.client_name}_"
+                          f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 37}")
 
         self.deserialize_model(model_parameters)
         train_dataset, eval_dataset = self.get_dataset(idx)
@@ -402,7 +392,7 @@ class BaseTrainer(ABC):
             self.deserialize_model(ckt_param)
 
         # Initialize Eval Trainer
-        eval_op = LocalBaseTrainer(
+        eval_op = LocalSFTTrainer(
             model=self.model,
             args=self.eval_args,
             tokenizer=self.data.tokenizer,
@@ -579,7 +569,7 @@ class BaseTrainer(ABC):
         if self.F.save_valid_len:
             checkpoint_file = os.path.join(self.T.checkpoint_dir, f"round-{self.round}")
             self.deserialize_model(serialized_parameters)
-            save_op = LocalBaseTrainer(
+            save_op = LocalSFTTrainer(
                 model=self.model,
                 args=self.eval_args,
             )

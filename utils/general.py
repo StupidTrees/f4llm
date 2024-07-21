@@ -3,20 +3,17 @@
 import os
 import json
 import pickle
-import importlib
 import math
-import multiprocessing
-
 import random
 import shutil
+import importlib
+import multiprocessing
 from glob import glob
 
+import torch
 import numpy as np
 import psutil
-import torch
 from peft import get_peft_model_state_dict
-from collections import Counter
-import torch.nn.functional as F
 
 from utils.constants import petuning_type
 from utils.register import registry
@@ -128,21 +125,6 @@ def LoadBalanceSampling(target, split_size):
         raise
 
 
-def has_repeated_ngrams(text, n=4, threshold=10):
-    # 将文本分割成n-gram
-    words = text.split()
-    ngrams = [" ".join(words[i:i + n]) for i in range(len(words) - n + 1)]
-    # 使用Counter统计n-gram出现的次数
-    ngram_counts = Counter(ngrams)
-    # print(ngram_counts)
-    # 检查是否有n-gram的次数超过阈值
-    for count in ngram_counts.values():
-        if count > threshold:
-            return True
-    # 如果没有超过阈值的n-gram，则返回False
-    return False
-
-
 def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0):
     """
     Compute the learning rate based on a cosine schedule.
@@ -156,6 +138,27 @@ def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0
     # Compute the cosine learning rate
     cosine_lr = min_lr + 0.5 * (initial_lr - min_lr) * (1 + math.cos(math.pi * current_round / total_rounds))
     return cosine_lr
+
+
+def custom_pad_sequence(tensor_list, padding_value=-100, left_padding=True):
+    # find the longest len
+    max_length = max(len(t) for t in tensor_list)
+
+    padded_list = []
+    for tensor in tensor_list:
+        padding_count = max_length - len(tensor)
+
+        if left_padding:
+            # left padding
+            padded_tensor = torch.cat([torch.full((padding_count,), padding_value), tensor])
+        else:
+            # right padding
+            padded_tensor = torch.cat([tensor, torch.full((padding_count,), padding_value)])
+        padded_list.append(padded_tensor)
+
+    padded_sequence = torch.stack(padded_list)
+
+    return padded_sequence
 
 
 def get_parameter_number(net):
@@ -264,47 +267,3 @@ def setup_imports():
 
     registry.register("root_folder", root_folder)
     registry.register("imports_setup", True)
-
-
-def compute_energy(model, tokenizer, new_data, temperature=1.0, top_k=10):
-    energy_dps = []
-    for dp in new_data:
-        sequence = "## Instruction: {instruction}\n## Response: {response}".format_map(dp)
-        # 将序列转换为tokens
-        tokens = tokenizer(sequence, return_tensors='pt')['input_ids'].to("cuda")
-        # 通过模型获取logits
-        with torch.no_grad():
-            outputs = model(tokens)
-        logits = outputs.logits
-        # 对每个token的logits进行处理
-        energies = []
-        for token_logits in logits[0]:
-            # 获取top-k logit的索引
-            top_indices = torch.topk(token_logits, top_k).indices
-            # 计算top-k logit的softmax
-            softmax_values = F.softmax(token_logits[top_indices] / temperature, dim=-1)
-            # 计算能量值
-            energy = -torch.sum(torch.log(softmax_values)) / temperature
-            energies.append(energy.item())
-        energy_value = sum(energies) / len(energies)  # 长度是否是个问题？
-        energy_dps.append((dp, energy_value))
-    # 返回能量值列表
-    return energy_dps
-
-
-def fast_k_center_sampling_from_embedding(data, k):
-    n = data.shape[0]
-    center = random.randint(0, n)  # Randomly choose the first center
-    centers = [center]
-    cache_dis = 1 - data[center].unsqueeze(0) @ data.T  # [1, n]
-    cache_dis[0, center] = -100
-
-    for _ in range(1, k):
-        center = torch.argmax(cache_dis[0])
-        centers.append(center)
-        new_dis = 1 - data[center].unsqueeze(0) @ data.T
-        cache_dis = torch.min(torch.cat([cache_dis, new_dis], 0), 0, keepdim=True)[0]
-        cache_dis[0, center] = -100
-        if len(centers) % 2000 == 0:
-            print(len(centers))
-    return centers

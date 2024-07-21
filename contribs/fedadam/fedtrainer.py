@@ -33,7 +33,8 @@ class FedAdamTrainer(BaseTrainer):
 
     # fed aggregation algorithm: fedadam, fedyogi, fedadagrad
     def aggregator(self, serialized_params_list, weights=None):
-        serialized_parameters = deepcopy(self.model_parameters)
+        # serialized_parameters = self.model_parameters
+        serialized_parameters = self.serialize_model_parameters()
 
         fedopt_beta1 = getattr(self.F, "fedopt_beta1", 0.9)
         fedopt_beta2 = getattr(self.F, "fedopt_beta2", 0.99)

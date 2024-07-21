@@ -12,9 +12,9 @@ class FedProxTrainer(BaseTrainer):
         super().__init__(*args)
         self._before_training()
 
-    def _train_alone(self, idx, model_parameters, *args, **kwargs):
-        self.logger.debug(f"\n{'=' * 35}\n>>> Client {idx} Trains in "
-                          f"Round {self.round + 1} <<<\n{'=' * 35}")
+    def local_train(self, idx, model_parameters, *args, **kwargs):
+        self.logger.debug(f"\n{'=' * 35}\n>>> Subserver={self.F.client_name}_"
+                          f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 35}")
 
         self.deserialize_model(model_parameters)
         train_dataset, eval_dataset = self.get_dataset(idx)
@@ -25,7 +25,7 @@ class FedProxTrainer(BaseTrainer):
 
         prox_mu = getattr(self.F, "prox_mu", 0.1)
         # Initialize local Trainer
-        train_op = registry.get_loctrainer(self.F.fl_algorithm)(
+        train_op = registry.get_loctrainer(self.F.local_trainer_name)(
             model=self.model,
             args=self.T,
             train_dataset=train_dataset,
@@ -41,6 +41,6 @@ class FedProxTrainer(BaseTrainer):
         del train_op
 
         train_loss = round(train_result.training_loss, 3)
-        self.metric_log["train_logs"][self.round][idx] = train_loss
-        self.logger.info(f">>> Client {idx} Train with lr {self.T.learning_rate*10000:.2f}e-4, Loss: {train_loss}")
+        self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
+                         f"{self.T.learning_rate * 10000:.2f}e-4_Loss={train_loss}")
         return train_loss
