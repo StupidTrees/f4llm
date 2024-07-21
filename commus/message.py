@@ -368,13 +368,16 @@ class Message(object):
             Transform the message into a protobuf message object for transmission.
 
         Args:
-            to_list(bool): A flag indicating whether to transform the message's content into a list format.
+            to_list(bool): A flag indicating whether to transform the message's content into a list format. It is necessary if the content contains complex objects like numpy arrays, torch tensor and so on.
 
         Returns:
             gRPC_communication_manager_pb2.MessageRequest: The protobuf message object representing the message.
 
         Notes:
             Note that this operation might change the content of the message based on the to_list flag!
+            If you want to transfer model parameters, you should put the model parameters into the value
+            of the 'model' key in the content and set the to_list flag to True. The model parameters can
+            be numpy arrays, torch tensors, torch state_dicts that containing tensors, etc.
 
         Examples:
             >>> message = Message(message_type=200, sender='0', receiver='1', content={'model': np.array([1, 2, 3])}, communication_round=0)
@@ -503,6 +506,10 @@ class Message(object):
 
         Returns:
             None
+
+        Notes:
+            If the content of the message contains 'model' key, the value of 'model' key will be parsed as a model
+            using base64 decoding.
 
         Examples:
             >>> message = Message(message_type=200, sender='0', receiver='1', content={'model': np.array([1, 2, 3])}, communication_round=0)

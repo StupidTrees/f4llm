@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 import torch
+from copy import deepcopy
 from commus.message import Message
 
 
@@ -124,6 +125,19 @@ class TestMessage(unittest.TestCase):
         self.assertNestedDataTypeEqual(
             received_msg.content, {'model': {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))}}
         )
+
+        content = {
+            'data': [1, 2, 3],
+            'model': {'fc1.weight': torch.ones((5, 5)), 'fc1.bias': torch.ones((5,))},
+            'loss': 0.0001,
+            'other': {0: [1, 2, 3], 1: 0.0001, 2: {'data': (3.0, 4.0, 0.1), 'loss': 0.09}}
+        }
+        msg.content = deepcopy(content)
+        print(msg.content)
+        request = msg.transform(to_list=True)
+        received_msg.parse(request.msg)
+        print(received_msg.content)
+        self.assertNestedDataTypeEqual(received_msg.content, content)
 
         msg.content = None
         with self.assertRaises(ValueError):
