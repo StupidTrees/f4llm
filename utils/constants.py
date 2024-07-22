@@ -1,3 +1,15 @@
+"""
+This module, `constants.py`, defines various constants used throughout the FNLP (Federated Natural Language Processing) project. It includes constants for parameter-efficient tuning types, legal case prompts, and mappings between client IDs and prompt types for legal case prediction. These constants are essential for the project's legal case prediction tasks, enabling dynamic prompt selection based on the context and ensuring consistent use of tuning techniques across the project.
+
+Key Components:
+- `petuning_type`: A list of parameter-efficient tuning types such as LoRA, Adapter, BitFit, Prefix, and P-Tuning.
+- `lcp_prompts`: A dictionary mapping prompt IDs to their corresponding text templates for legal case prediction.
+- `lcp_client2prompt`: A nested dictionary mapping client IDs to prompt IDs, facilitating customized prompt selection for different clients.
+
+These constants play a crucial role in the FNLP project by providing a centralized repository of configurations for legal case prediction, thereby enhancing modularity, maintainability, and scalability of the project's codebase.
+"""
+
+
 petuning_type = ["lora", "adapter", "bitfit", "prefix", "p-tuning"]
 
 lcp_prompts = {

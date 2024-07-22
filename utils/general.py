@@ -19,18 +19,69 @@ from utils.constants import petuning_type
 from utils.register import registry
 
 
+"""
+This module, `general.py`, encompasses a wide range of utility functions designed to support various aspects of the FNLP (Federated Natural Language Processing) project. It includes functionalities for file operations (reading and writing different formats), directory management, system resource queries (CPU and memory usage), data sampling, learning rate scheduling, sequence padding, model parameter management, random seed setup, and import management. These utilities facilitate the handling of data, ensure reproducibility, optimize resource usage, and dynamically load project components, thereby supporting the project's infrastructure and operational needs.
+
+Key Functions:
+- File operations: Reading and writing for pickle, JSON, and plain text files.
+- Directory management: Creating and removing directories and files as needed.
+- System resource queries: Fetching the number of CPUs and current memory usage.
+- Data sampling: Implementing load balance sampling for distributed processing.
+- Learning rate scheduling: Calculating learning rates based on a cosine schedule.
+- Sequence padding: Custom padding for sequences to a uniform length.
+- Model parameter management: Fetching parameters for PEFT (Parameter Efficient Fine-Tuning) models and checking if a model is using PEFT.
+- Random seed setup: Ensuring reproducibility across runs by setting random seeds.
+- Import management: Dynamically loading project components to facilitate easy extension and customization of the FNLP framework.
+
+This module plays a crucial role in the FNLP project by providing essential utilities that enhance efficiency, maintainability, and scalability of the project's codebase.
+"""
+
+
 def pickle_read(path, read_format="rb"):
+    """
+    Read pickle file from path and return the object.
+
+    Args:
+        path: The path of the pickle file.
+        read_format: The read format of the file. Default is "rb".
+
+    Returns:
+        The object read from the pickle file.
+
+    """
     with open(path, read_format) as file:
         obj = pickle.load(file)
     return obj
 
 
 def pickle_write(obj, path, write_format="wb"):
+    """
+    Write the object to a pickle file at the specified path.
+
+    Args:
+        obj: The object to be written.
+        path: The path of the pickle file.
+        write_format: The write format of the file. Default is "wb".
+
+    Returns:
+        None
+
+    """
     with open(path, write_format) as file:
         pickle.dump(obj, file)
 
 
 def read_json(path_file):
+    """
+    Read json file from path and return the object.
+
+    Args:
+        path_file: The path of the json file.
+
+    Returns:
+        The object read from the json file.
+
+    """
     outputs = []
     with open(path_file, "r") as file:
         if path_file.endswith("jsonl"):
@@ -42,6 +93,17 @@ def read_json(path_file):
 
 
 def write_json(obj, path_file):
+    """
+    Write the object to a json file at the specified path.
+
+    Args:
+        obj: The object to be written.
+        path_file: The path of the json file.
+
+    Returns:
+        None
+
+    """
     with open(path_file, "w") as file:
         if path_file.endswith("jsonl"):
             for line in obj:
@@ -52,16 +114,33 @@ def write_json(obj, path_file):
 
 
 def file_write(line, path, mode):
+    """
+    Write line to file.
+
+    Args:
+        line: The line to be written.
+        path: The path of the file.
+        mode: The mode of the file.
+
+    Returns:
+        None
+
+    """
     with open(path, mode) as file:
         file.write(line + "\n")
 
 
 def make_sure_dirs(path, role="server"):
-    """Create dir if not exists
+    """
+    Create dir if not exists and return the path.
 
     Args:
-        path (str): path
-        role (str): sign
+        path (str): The path to be created.
+        role (str): The role of the directory. Default is "server".
+
+    Returns:
+        The path of the created directory.
+
     """
     if role == "client":
         return
@@ -73,20 +152,41 @@ def make_sure_dirs(path, role="server"):
 def rm_dirs(path: str):
     """
     remove file existing check.
+
     Args:
-        path (str): path
+        path (str): The path to be removed.
+
+    Returns:
+        None
+
     """
     if os.path.exists(path):
         shutil.rmtree(path)
 
 
 def rm_file(file_path: str):
+    """
+    remove file existing check.
+
+    Args:
+        file_path: The path of the file to be removed.
+
+    Returns:
+        None
+
+    """
     if os.path.isfile(file_path):
         os.unlink(file_path)
 
 
 def get_cpus():
-    """return total num of cpus in current machine."""
+    """
+    return total num of cpus in current machine.
+
+    Returns:
+        The total number of CPUs in the current machine.
+
+    """
     try:
         with open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us") as f:
             cfs_quota_us = int(f.readline())
@@ -101,8 +201,10 @@ def get_cpus():
 
 def get_memory_usage():
     """
-        return total memory been used.
-        memory use in GB
+    return total memory been used (GB).
+
+    Returns:
+        The total memory used in GB.
     """
     pid = os.getpid()
     py = psutil.Process(pid)
@@ -111,6 +213,17 @@ def get_memory_usage():
 
 
 def LoadBalanceSampling(target, split_size):
+    """
+    Load balance sampling.
+
+    Args:
+        target: The target to be sampled.
+        split_size: The size of the split.
+
+    Returns:
+        The sampled target.
+
+    """
     chunk_size = int(len(target) // split_size)
     result = [target[x:x + chunk_size] for x in range(0, len(target), chunk_size)]
 
@@ -129,11 +242,15 @@ def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0
     """
     Compute the learning rate based on a cosine schedule.
 
-    :param current_round: The current training round (0-indexed).
-    :param total_rounds: The total number of training rounds.
-    :param initial_lr: The initial learning rate.
-    :param min_lr: The minimum learning rate.
-    :return: The computed learning rate for the current round.
+    Args:
+        current_round: The current training round (0-indexed).
+        total_rounds: The total number of training rounds.
+        initial_lr: The initial learning rate, default is 0.001.
+        min_lr: The minimum learning rate, default is 0.
+
+    Returns:
+        The computed learning rate for the current round.
+
     """
     # Compute the cosine learning rate
     cosine_lr = min_lr + 0.5 * (initial_lr - min_lr) * (1 + math.cos(math.pi * current_round / total_rounds))
@@ -141,6 +258,18 @@ def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0
 
 
 def custom_pad_sequence(tensor_list, padding_value=-100, left_padding=True):
+    """
+    Custom padding for sequences to a uniform length.
+
+    Args:
+        tensor_list: The list of tensors to be padded.
+        padding_value: The value to be used for padding. Default is -100.
+        left_padding: Whether to pad on the left side. Default is True.
+
+    Returns:
+        The padded sequence.
+
+    """
     # find the longest len
     max_length = max(len(t) for t in tensor_list)
 
@@ -162,12 +291,33 @@ def custom_pad_sequence(tensor_list, padding_value=-100, left_padding=True):
 
 
 def get_parameter_number(net):
+    """
+    Get the total number of parameters and the number of trainable parameters in the model network.
+
+    Args:
+        net: The model network.
+
+    Returns:
+        A dictionary containing the total number of parameters and the number of trainable parameters
+        in the model network.
+
+    """
     total_num = sum(p.numel() for p in net.parameters())
     trainable_num = sum(p.numel() for p in net.parameters() if p.requires_grad)
     return {'Total': round(total_num / 1e6, 4), 'Trainable': round(trainable_num / 1e6, 4)}
 
 
 def is_petuning(tuning_type):
+    """
+    Check if the tuning type is PEFT (Parameter Efficient Fine-Tuning).
+
+    Args:
+        tuning_type: The tuning type to be checked.
+
+    Returns:
+        True if the tuning type is PEFT, False otherwise.
+
+    """
     for name in petuning_type:
         if name in tuning_type:
             return True
@@ -175,6 +325,17 @@ def is_petuning(tuning_type):
 
 
 def get_peft_parameters(model, tuning_type):
+    """
+    Get the PEFT (Parameter Efficient Fine-Tuning) parameters for the model.
+
+    Args:
+        model: The model to be fine-tuned.
+        tuning_type: The tuning type to be used.
+
+    Returns:
+        The PEFT model state dictionary.
+
+    """
     if tuning_type == "adapter":
         peft_model_state_dict = {}
         for name, param in model.named_parameters():
@@ -187,6 +348,16 @@ def get_peft_parameters(model, tuning_type):
 
 
 def setup_seed(seed: int):
+    """
+    Setup seed for reproducibility.
+
+    Args:
+        seed: The seed value to be set.
+
+    Returns:
+        None
+
+    """
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -202,8 +373,16 @@ def setup_seed(seed: int):
 
 def is_best(p_metric, c_metric, low_is_better):
     """
-    c_metric: current metric
-    p_metric: previous metric
+    Check if the current metric is better than the previous metric.
+
+    Args:
+        c_metric: The current metric.
+        p_metric: The previous metric.
+        low_is_better: Whether a lower metric is better.
+
+    Returns:
+        True if the current metric is better than the previous metric, False otherwise
+
     """
     if not low_is_better and p_metric <= c_metric:
         return True
@@ -213,11 +392,43 @@ def is_best(p_metric, c_metric, low_is_better):
 
 
 def run_process(proc):
+    """
+    Run the process.
+
+    Args:
+        proc: The process to be run.
+
+    Returns:
+        None
+
+    """
     os.system(proc)
 
 
 def end_log(fun):
+    """
+    End log wrapper.
+
+    Args:
+        fun: The function to be wrapped.
+
+    Returns:
+        The wrapped function.
+
+    """
     def wapper(handler_or_trainer, training_config, logger):
+        """
+        Wapper function.
+
+        Args:
+            handler_or_trainer: The handler or trainer object.
+            training_config: The training configuration.
+            logger: The logger object.
+
+        Returns:
+            The wrapped function.
+
+        """
         if training_config.local_rank <= 0:
             logger.info(f"see training logs --> {training_config.metric_log_file}")
             logger.info(f"see training results --> {training_config.metric_file}")
@@ -228,6 +439,18 @@ def end_log(fun):
 
 @end_log
 def metric_save(trainer, training_config, logger=None):
+    """
+    Save the metric to the file.
+
+    Args:
+        trainer: The trainer object.
+        training_config: The training configuration.
+        logger: The logger object, default is None.
+
+    Returns:
+        None
+
+    """
     pickle_write(trainer.metric_log, training_config.metric_log_file)
     # trainer.metric_line += f"valid_{trainer.metric_name}={trainer.global_valid_best_metric:.3f}_"
     # trainer.metric_line += f"test_{trainer.global_test_best_metric}"
@@ -235,6 +458,12 @@ def metric_save(trainer, training_config, logger=None):
 
 
 def setup_imports():
+    """
+    Setup imports for the project.
+
+    Returns:
+        None
+    """
     from utils.register import registry
     # First, check if imports are already setup
     has_already_setup = registry.get("imports_setup", no_warning=True)
