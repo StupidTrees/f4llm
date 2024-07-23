@@ -138,3 +138,6 @@ class TestSerializationTool(unittest.TestCase):
         with self.assertRaises(ValueError):
             SerializationTool.deserialize_peft_model(model, serialized_params, mode='minus', tuning_type="adapter")
 
+
+if __name__ == '__main__':
+    unittest.main()
