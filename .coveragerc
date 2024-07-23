@@ -6,3 +6,6 @@ source =
     configs
     models
     utils
+omit =
+    commus/gRPC_communication_manager_pb2.py
+    commus/gRPC_communication_manager_pb2_grpc.py
