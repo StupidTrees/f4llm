@@ -42,7 +42,7 @@ class DPODataManger(FedBaseDataManger):
                 assert 'prompt' in columns and 'rejected' in columns and 'chosen' in columns
                 prompt, chosen, rejected = example['prompt'], example['chosen'], example['rejected']
 
-            source = template.format_map({'Instruction': prompt})
+            source = template['prompt_no_input'].format_map({'instruction': prompt})
             source_ids = self.tokenizer.encode(text=source, add_special_tokens=False)
             chosen_ids = self.tokenizer.encode(text=chosen, add_special_tokens=False)
             rejected_ids = self.tokenizer.encode(text=rejected, add_special_tokens=False)

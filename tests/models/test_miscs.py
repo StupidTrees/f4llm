@@ -2,7 +2,10 @@ import random
 import unittest
 from copy import deepcopy
 
-from torch.nn import ModuleList
+import accelerate
+from sympy.physics.units import Da
+from torch.nn import ModuleList, DataParallel
+from torch.nn.parallel import DistributedDataParallel
 from transformers import OPTForCausalLM, OPTConfig, GPT2LMHeadModel, GPT2Config, BloomForCausalLM, BloomConfig
 from transformers.models.bloom.modeling_bloom import BloomBlock
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
@@ -10,7 +13,7 @@ from transformers.models.opt.modeling_opt import OPTDecoderLayer
 
 from configs import ModelArguments
 from models.miscs import get_layer_module_name, get_layer_module, set_layer_module, build_selector, build_emulator, \
-    uniform_layer_idx
+    uniform_layer_idx, extract_backbone
 
 
 class TestMiscs(unittest.TestCase):
@@ -75,6 +78,12 @@ class TestMiscs(unittest.TestCase):
                     continue
                 idx = uniform_layer_idx(total_layer, base_layer, emulator_layer)
                 self.assertEqual(len(idx), 2 * base_layer + emulator_layer)
+
+    def test_extract_backbone(self):
+        for lm in self.test_models:
+            lm_dp = DataParallel(lm)
+            backbone = extract_backbone(lm_dp)
+            self.assertEqual(backbone, lm)
 
     def test_build_emulator(self):
         md_cfg = ModelArguments("")

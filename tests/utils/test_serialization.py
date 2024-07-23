@@ -38,8 +38,8 @@ class TestSerializationTool(unittest.TestCase):
         model_path = os.path.join(test_path, '../data/nnModel.ckpt')
         cls.model = Net(cls.input_size, cls.hidden_size, cls.num_classes)
         cls.model.load_state_dict(torch.load(model_path))
-        peft_config = LoraConfig(target_modules=['fc1'])
-        cls.lora_model = get_peft_model(copy.deepcopy(cls.model), peft_config)
+        cls.peft_config = LoraConfig(target_modules=['fc1'])
+        cls.lora_model = get_peft_model(copy.deepcopy(cls.model), cls.peft_config)
 
     def assertParametersEqual(self, model1, model2):
         for param1, param2 in zip(model1.parameters(), model2.parameters()):
@@ -140,6 +140,7 @@ class TestSerializationTool(unittest.TestCase):
     @torch.no_grad()
     def test_deserialize_peft_model_adapter_other(self):
         model = Net(self.input_size, self.hidden_size, self.num_classes)
+        model = get_peft_model(model, self.peft_config)
         serialized_params = SerializationTool.serialize_peft_model(self.lora_model, "other")
         with self.assertRaises(ValueError):
             SerializationTool.deserialize_peft_model(model, serialized_params, mode='minus', tuning_type="other")

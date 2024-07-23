@@ -4,6 +4,7 @@ import sys
 import unittest
 from copy import copy
 from os.path import exists, join
+from unittest.mock import patch
 
 import numpy as np
 from torch.utils.data import DataLoader
@@ -46,24 +47,23 @@ class TestSFTData(unittest.TestCase):
             with open(join(test_output_path, 'test_partition.pkl'), 'wb') as f:
                 pickle.dump(obj, f)
 
-
     def setUp(self) -> None:
-        sys.argv.extend(
-            ["--model_name_or_path", test_model_path,
-             "--output_dir", test_output_path,
-             "--task_name", "",
-             "--clients_num", f"{test_clients_num}",
-             "--raw_dataset_path", "",
-             "--overwrite_cache", "true",
-             "--partition_dataset_path", "",
-             "--model_type", "llama2-base",
-             "--task_name", "medi",
-             "--partition_dataset_path", join(test_output_path, 'test_partition.pkl'),
-             "--raw_dataset_path", join(test_output_path, 'test_raw.pkl'),
-             "--checkpoint_file", test_output_path])
-        if 'discover' in sys.argv:
-            sys.argv.remove('discover')
-        build_config()
+        arg_list = sys.argv + ["--model_name_or_path", test_model_path,
+                               "--output_dir", test_output_path,
+                               "--task_name", "",
+                               "--clients_num", f"{test_clients_num}",
+                               "--raw_dataset_path", "",
+                               "--overwrite_cache", "true",
+                               "--partition_dataset_path", "",
+                               "--model_type", "llama2-base",
+                               "--task_name", "medi",
+                               "--partition_dataset_path", join(test_output_path, 'test_partition.pkl'),
+                               "--raw_dataset_path", join(test_output_path, 'test_raw.pkl'),
+                               "--checkpoint_file", test_output_path]
+        if 'discover' in arg_list:
+            arg_list.remove('discover')
+        with patch("sys.argv", arg_list):
+            build_config()
 
         self.model_max_length = 24
         self.test_sources = ["Q:How to hang knives against the wall?", "Q:Why does the sun rise in the east?"]
@@ -115,24 +115,6 @@ class TestSFTData(unittest.TestCase):
                     self.assertEqual(example['input_ids'].size(0), 7)
                 total_size += example['input_ids'].size(0)
             self.assertEqual(total_size, len(train_dataset))
-
-    def test_dop_data_manager(self):
-        dm = DPODataManger()
-        with open(join(test_output_path, 'test_partition.pkl'), 'rb') as f:
-            partition_obj = pickle.load(f)
-        for cid in range(test_clients_num):
-            train_dataset = dm.train_dataset_dict[cid]
-            self.assertEqual(len(train_dataset), len(partition_obj['train'][cid]))
-            cn = dm.coll_fn(None)
-            dl = DataLoader(train_dataset, collate_fn=cn, batch_size=7)
-            total_size = 0
-            for idx, example in enumerate(dl):
-                if idx != len(dl) - 1:
-                    self.assertEqual(example['chosen_input_ids'].size(0), 7)
-                total_size += example['chosen_input_ids'].size(0)
-            self.assertEqual(total_size, len(train_dataset))
-
-
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

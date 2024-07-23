@@ -1,3 +1,4 @@
+import pickle
 import random
 import sys
 import unittest
@@ -9,10 +10,9 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from configs import build_config
-from datas.dpo_data import DPODataManger, UFBDataManger
-from datas.sft_data import preprocess, _tokenize_fn, IGNORE_INDEX, LlaMaGenDataManger
+from datas.dpo_data import UFBDataManger, DPODataManger
 from tests.config import test_model_path, test_output_path
-import pickle
+from unittest.mock import patch
 
 test_clients_num = 3
 
@@ -49,23 +49,22 @@ class TestDPOData(unittest.TestCase):
                 pickle.dump(obj, f)
 
     def setUp(self) -> None:
-        sys.argv.extend(
-            ["--model_name_or_path", test_model_path,
-             "--output_dir", test_output_path,
-             "--task_name", "",
-             "--overwrite_cache", "true",
-             "--clients_num", f"{test_clients_num}",
-             "--raw_dataset_path", "",
-             "--partition_dataset_path", "",
-             "--model_type", "llama2-base",
-             "--task_name", "medi",
-             "--partition_dataset_path", join(test_output_path, 'test_partition_dpo.pkl'),
-             "--raw_dataset_path", join(test_output_path, 'test_raw_dpo.pkl'),
-             "--checkpoint_file", test_output_path])
-        if 'discover' in sys.argv:
-            sys.argv.remove('discover')
-        build_config()
-
+        arg_list = sys.argv + ["--model_name_or_path", test_model_path,
+                    "--output_dir", test_output_path,
+                    "--task_name", "",
+                    "--overwrite_cache", "true",
+                    "--clients_num", f"{test_clients_num}",
+                    "--raw_dataset_path", "",
+                    "--partition_dataset_path", "",
+                    "--model_type", "llama2-base",
+                    "--task_name", "medi",
+                    "--partition_dataset_path", join(test_output_path, 'test_partition_dpo.pkl'),
+                    "--raw_dataset_path", join(test_output_path, 'test_raw_dpo.pkl'),
+                    "--checkpoint_file", test_output_path]
+        if 'discover' in arg_list:
+            arg_list.remove('discover')
+        with patch("sys.argv", arg_list):
+            build_config()
         self.model_max_length = 24
         self.tokenizer = AutoTokenizer.from_pretrained(
             test_model_path,
@@ -83,6 +82,21 @@ class TestDPOData(unittest.TestCase):
         for cid in range(test_clients_num):
             train_dataset = dm.train_dataset_dict[cid]
             self.assertEqual(len(train_dataset), len(partition_obj['train'][cid]))
+
+    def test_dop_data_manager(self):
+        dm = DPODataManger()
+        with open(join(test_output_path, 'test_partition_dpo.pkl'), 'rb') as f:
+            partition_obj = pickle.load(f)
+        for cid in range(test_clients_num):
+            train_dataset = dm.train_dataset_dict[cid]
+            self.assertEqual(len(train_dataset), len(partition_obj['train'][cid]))
+            dl = DataLoader(train_dataset, collate_fn=dm.coll_fn(None), batch_size=7)
+            total_size = 0
+            for idx, example in enumerate(dl):
+                if idx != len(dl) - 1:
+                    self.assertEqual(example['chosen_input_ids'].size(0), 7)
+                total_size += example['chosen_input_ids'].size(0)
+            self.assertEqual(total_size, len(train_dataset))
 
 
 if __name__ == '__main__':
