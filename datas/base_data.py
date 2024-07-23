@@ -53,7 +53,7 @@ class FedBaseDataManger(ABC):
         self._build_tokenizer()
         self._build_registry()
 
-    def _load_data(self):
+    def load_data(self):
 
         train_dataset_dict, valid_dataset_dict, test_dataset_dict = {}, {}, {}
         train_features_all, valid_features_all, test_features_all = [], [], []
@@ -63,23 +63,24 @@ class FedBaseDataManger(ABC):
 
         for idx in range(self.attribute["clients_num"]):
             train_dataset_dict[idx] = self.build_dataset(train_features_dict[idx])
-            valid_dataset_dict[idx] = self.build_dataset(valid_features_dict[idx])
-            test_dataset_dict[idx] = self.build_dataset(test_features_dict[idx])
+            valid_dataset_dict[idx] = self.build_dataset(valid_features_dict[idx]) \
+                if len(valid_features_dict[idx]) != 0 else None
+            test_dataset_dict[idx] = self.build_dataset(test_features_dict[idx]) \
+                if len(test_features_dict[idx]) != 0 else None
 
             train_features_all += list(train_features_dict[idx])
             valid_features_all += list(valid_features_dict[idx])
             test_features_all += list(test_features_dict[idx])
 
         train_dataset_dict[-1] = self.build_dataset(train_features_all)
-        valid_dataset_dict[-1] = self.build_dataset(valid_features_all)
-        test_dataset_dict[-1] = self.build_dataset(test_features_all)
+        valid_dataset_dict[-1] = self.build_dataset(valid_features_all) if valid_features_all else None
+        test_dataset_dict[-1] = self.build_dataset(test_features_all) if test_dataset_dict else None
 
         self.train_dataset_dict = train_dataset_dict
         self.valid_dataset_dict = valid_dataset_dict
         self.test_dataset_dict = test_dataset_dict
 
         self.train_examples_num_dict = train_examples_num_dict
-
         self.logger.info(f"Train num: {self.train_num}, "
                          f"Valid num: {self.valid_num}, "
                          f"Test num: {self.test_num}")
@@ -121,10 +122,16 @@ class FedBaseDataManger(ABC):
         train_features_all = np.array(self.process_examples(raw_data["train"], "train"))
 
         self.logger.info("convert valid examples into features ...")
-        valid_features_all = np.array(self.process_examples(raw_data["valid"], "valid"))
+        if "valid" not in raw_data:
+            valid_features_all = []
+        else:
+            valid_features_all = np.array(self.process_examples(raw_data["valid"], "valid"))
 
         self.logger.info("convert test examples into features ...")
-        test_features_all = np.array(self.process_examples(raw_data["test"], "test"))
+        if "test" not in raw_data:
+            test_features_all = []
+        else:
+            test_features_all = np.array(self.process_examples(raw_data["test"], "test"))
 
         self.logger.info("build clients train & valid features ...")
         for idx in range(n_clients):
@@ -132,13 +139,19 @@ class FedBaseDataManger(ABC):
             train_examples_num_dict[idx] = len(client_train_list)
             train_features_dict[idx] = train_features_all[client_train_list]
 
-            client_valid_list = partition_data["valid"][idx]
-            valid_examples_num_dict[idx] = len(client_valid_list)
-            valid_features_dict[idx] = valid_features_all[client_valid_list]
+            if "valid" not in partition_data:
+                client_valid_list = partition_data["valid"][idx]
+                valid_examples_num_dict[idx] = len(client_valid_list)
+                valid_features_dict[idx] = valid_features_all[client_valid_list]
+            else:
+                valid_examples_num_dict[idx], valid_features_dict[idx] = 0, []
 
-            client_test_list = partition_data["test"][idx]
-            test_examples_num_dict[idx] = len(client_test_list)
-            test_features_dict[idx] = test_features_all[client_test_list]
+            if "test" not in partition_data:
+                client_test_list = partition_data["test"][idx]
+                test_examples_num_dict[idx] = len(client_test_list)
+                test_features_dict[idx] = test_features_all[client_test_list]
+            else:
+                test_examples_num_dict[idx], test_features_dict[idx] = 0, []
 
         self.train_num, self.valid_num, self.test_num = \
             len(train_features_all), len(valid_features_all), len(test_features_all)

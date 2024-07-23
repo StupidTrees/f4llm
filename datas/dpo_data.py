@@ -15,7 +15,6 @@ IGNORE_INDEX = -100
 class DPODataManger(FedBaseDataManger):
     def __init__(self):
         super().__init__()
-        self._load_data()
 
     def build_inputs(self, prompt_text, text):
         inputs_text = prompt_text.format(text)
@@ -129,7 +128,6 @@ class DPODataManger(FedBaseDataManger):
 class UFBDataManger(FedBaseDataManger):
     def __init__(self):
         super().__init__()
-        self._load_data()
 
     def build_inputs(self, prompt_text, text):
         inputs_text = prompt_text.format(text)

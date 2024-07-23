@@ -63,7 +63,6 @@ def preprocess(
 class LlaMaGenDataManger(FedBaseDataManger):
     def __init__(self):
         super().__init__()
-        self._load_data()
 
     def build_inputs(self, prompt_text, text):
         inputs_text = prompt_text.format(text)

@@ -36,7 +36,7 @@ class FederatedTrainingArguments:
         default=1, metadata={"help": "The participant ratio in each training round"}
     )
     role: str = field(
-        default="server",
+        default="client",
         metadata={"help": "Important! The role of running scripts"}
     )
     num_sub: int = field(

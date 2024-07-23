@@ -31,8 +31,9 @@ else
     model_name_or_path=""
 fi
 
-# example: bash ./scripts/run_all.sh /userhome fed4llm llama2-base fedavg ultrafeedback_binarized 10001 0
-deepspeed --include localhost:3 --master_port 10001 main.py \
+# example: bash ./scripts/run_all.sh /userhome fed4llm llama2-base fedavg ultrafeedback_binarized 10001 012
+# deepspeed --include localhost:3 --master_port 10001 main.py \
+python main.py \
 --do_train \
 --raw_dataset_path /userhome/data/${project_name}/${task_name}_data.pkl \
 --partition_dataset_path /userhome/data/${project_name}/${task_name}_partition.pkl \
@@ -47,7 +48,7 @@ deepspeed --include localhost:3 --master_port 10001 main.py \
 --server_ip 127.0.0.1 \
 --server_port 15001 &
 
-deepspeed --include localhost:0 --master_port 10002 main.py \
+deepspeed --include localhost:1 --master_port 10002 main.py \
 --do_train \
 --raw_dataset_path /userhome/data/${project_name}/${task_name}_data.pkl \
 --partition_dataset_path /userhome/data/${project_name}/${task_name}_partition.pkl \
@@ -62,7 +63,7 @@ deepspeed --include localhost:0 --master_port 10002 main.py \
 --client_ip 127.0.0.1 \
 --client_port 15002 &
 
-deepspeed --include localhost:1 --master_port 10003 main.py \
+deepspeed --include localhost:2 --master_port 10003 main.py \
 --do_train \
 --raw_dataset_path /userhome/data/${project_name}/${task_name}_data.pkl \
 --partition_dataset_path /userhome/data/${project_name}/${task_name}_partition.pkl \
