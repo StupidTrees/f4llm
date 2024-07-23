@@ -1,7 +1,10 @@
+import copy
 import os
 import unittest
 import torch
 import torch.nn as nn
+from peft import LoraConfig, get_peft_model
+
 from utils.serialization import SerializationTool
 
 
@@ -35,6 +38,8 @@ class TestSerializationTool(unittest.TestCase):
         model_path = os.path.join(test_path, '../data/nnModel.ckpt')
         cls.model = Net(cls.input_size, cls.hidden_size, cls.num_classes)
         cls.model.load_state_dict(torch.load(model_path))
+        peft_config = LoraConfig(target_modules=['fc1'])
+        cls.lora_model = get_peft_model(copy.deepcopy(cls.model), peft_config)
 
     def assertParametersEqual(self, model1, model2):
         for param1, param2 in zip(model1.parameters(), model2.parameters()):
@@ -104,14 +109,15 @@ class TestSerializationTool(unittest.TestCase):
         m_params = m_params[1:]
         self.assertTrue(torch.equal(serialized_params, m_params))
 
-    # @torch.no_grad()
-    # def test_serialize_peft_model_other(self):
-        # serialized_params = SerializationTool.serialize_peft_model(self.model, "other")
-        # m_params = torch.Tensor([0])
-        # for param in self.model.parameters():
-        #     m_params = torch.cat((m_params, param.data.view(-1)))
-        # m_params = m_params[1:]
-        # self.assertTrue(torch.equal(serialized_params, m_params))
+    @torch.no_grad()
+    def test_serialize_peft_model_other(self):
+        serialized_params = SerializationTool.serialize_peft_model(self.lora_model, "other")
+        m_params = torch.Tensor([0])
+        for nm, param in self.lora_model.named_parameters():
+            if 'lora' in nm:
+                m_params = torch.cat((m_params, param.data.view(-1)))
+        m_params = m_params[1:]
+        self.assertTrue(torch.equal(serialized_params, m_params))
 
     @torch.no_grad()
     def test_deserialize_peft_model_adapter_copy(self):
@@ -134,9 +140,9 @@ class TestSerializationTool(unittest.TestCase):
     @torch.no_grad()
     def test_deserialize_peft_model_adapter_other(self):
         model = Net(self.input_size, self.hidden_size, self.num_classes)
-        serialized_params = SerializationTool.serialize_peft_model(self.model, "adapter")
+        serialized_params = SerializationTool.serialize_peft_model(self.lora_model, "other")
         with self.assertRaises(ValueError):
-            SerializationTool.deserialize_peft_model(model, serialized_params, mode='minus', tuning_type="adapter")
+            SerializationTool.deserialize_peft_model(model, serialized_params, mode='minus', tuning_type="other")
 
 
 if __name__ == '__main__':

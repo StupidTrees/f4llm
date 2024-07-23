@@ -5,9 +5,7 @@ import unittest
 from configs import ModelArguments, build_config
 from models.base_model import BaseModels
 from models.miscs import get_layer_module
-
-test_model_path = "/data/stupidtree/data/sfl/models/gpt2-large"
-test_output_path = "/data/stupidtree/project/f4llm/output"
+from tests.config import test_model_path, test_output_path
 
 
 class TestBaseModel(unittest.TestCase):
@@ -52,7 +50,7 @@ class TestBaseModel(unittest.TestCase):
         model_config.nas_type = 'emulator'
         model_config.tuning_type = ''
         model_config.client_model_layers = 0
-        model_config.base_layer = 5
+        model_config.base_layer = 2
         for server_layer_num in [self.raw_backbone_size // 2, self.raw_backbone_size]:
             model_config.server_model_layers = server_layer_num
             self.test_model.model_config = model_config
@@ -65,8 +63,8 @@ class TestBaseModel(unittest.TestCase):
         model_config.nas_type = 'selector'
         model_config.tuning_type = ''
         model_config.client_model_layers = 0
-        model_config.base_layer = 5
-        for selected_num in range(0, self.raw_backbone_size + 1, 8):
+        model_config.base_layer = 2
+        for selected_num in range(0, self.raw_backbone_size + 1, 4):
             model_config.server_model_layers = random.sample(range(self.raw_backbone_size),
                                                              selected_num)
             self.test_model.model_config = model_config
