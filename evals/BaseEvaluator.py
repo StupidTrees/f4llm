@@ -15,12 +15,10 @@ from trainers.BaseEngine import BaseEngine
 
 
 class BaseEvaluator(BaseEngine):
-    def __init__(self, data=None, model=None, *args):
+    def __init__(self, *args):
         super().__init__(*args)
-        self.data = data
-        self.model = model
 
-    def _before_eval(self):
+    def on_eval_before(self):
         # set seed
         setup_seed(self.T.seed)
 
@@ -36,28 +34,30 @@ class BaseEvaluator(BaseEngine):
         # global model
         self.best_glo_params = self.serialize_model_parameters()
 
+    def _load_examples(self):
+        raise NotImplementedError
+
     def _build_data(self):
         self.logger.info(f"{self.role} building dataset ...")
         self.data = registry.get_data_class(self.D.data_name)()
         if self.D.eval_data_path is not None:
-            # load examples
-            examples = None
+            # load examples used for open-ai test
+            examples = self._load_examples()
             self.data.process_examples(examples, self.phase)
         else:
             self.data.load_data()
 
     def run(self):
-        # 两种测试场景
-        # during_training：检测本地新的dir
-        # after_training：直接单或者多
-        # 三种测试方法：
-        # 1）Open-key打分；# 加载model和data
-        # 2）外部第三方工具包；# 不需要code来加载
-        # 3）本地测试；# 加载model和data
-        ...
+        self.on_eval_before()
+        self.on_eval()
+        self.on_eval_end()
 
-    def eval(self):
+    def on_eval(self):
+        if self.phase == "zst":
+            self.zero_test()
+            return
 
+        # default local test
         best_file = None
         single_file = False
 
@@ -80,7 +80,6 @@ class BaseEvaluator(BaseEngine):
             eval_key = registry.get("eval_key", "train")
             _, valid_dataset = self.get_dataset(-1, eval_key)
 
-            # if self.T.save_outputs:
             checkpoint_opt_file = os.path.join(checkpoint_file, f"{file}.result.pkl")
             registry.register('checkpoint_opt_file', checkpoint_opt_file)
 
@@ -103,7 +102,9 @@ class BaseEvaluator(BaseEngine):
                              f"Best: {self.global_valid_best_metric:.3f}")
             self.logger.info(f"Eval Results save in {checkpoint_opt_file}")
 
-        if not single_file:
+            # self._build_model()
+
+        if not single_file and not self.T.test_openai:
             metric_path = os.path.join(self.T.checkpoint_file, "metric.csv")
             metrics_df = pd.DataFrame.from_dict(ckpt_metric, orient='index')
             metrics_df["mean"] = metrics_df.mean(axis=1).round(1)
@@ -119,42 +120,37 @@ class BaseEvaluator(BaseEngine):
             with self.T.main_process_first():
                 run_process(f"cat {metric_path}")
 
-        # self.deserialize_model(self.best_glo_params)
-        # best/selected for test prediction
-        # self.logger.critical("Test Start")
-        # _, test_dataset = self.get_dataset(-1, "test")
-        # test_result = self.eval_fun(test_dataset)
-        # global_test_best_metric = test_result["eval_result"]
-        #
-        # self.global_test_best_metric = ""
-        # for metric_name, metric in global_test_best_metric.items():
-        #     self.global_test_best_metric += f"{metric_name}={metric:.3f}_"
-        # self.global_test_best_metric = self.global_test_best_metric[0:-1]
-        #
-        # self.logger.critical(f"Test Done, "
-        #                      f"Checkpoint Metric: {self.global_test_best_metric}, "
-        #                      f"Model Path: {self.T.checkpoint_file}")
-        #
-        # if os.path.isdir(self.T.checkpoint_file):
-        #     self.metric_save()
+        if self.T.test_best and not self.T.test_openai:
+            self.logger.critical("Test Start")
+            self.deserialize_model(self.best_glo_params)
 
-    def predict(self):
-        ...
+            _, test_dataset = self.get_dataset(-1, "test")
+            test_result = self.eval_fun(test_dataset)
+
+            global_test_best_metric = test_result["eval_result"]
+            self.global_test_best_metric = ""
+            for metric_name, metric in global_test_best_metric.items():
+                self.global_test_best_metric += f"{metric_name}={metric:.3f}_"
+            self.global_test_best_metric = self.global_test_best_metric[0:-1]
+
+            self.logger.critical(f"Test Done, "
+                                 f"Checkpoint Metric: {self.global_test_best_metric}, "
+                                 f"Model Path: {self.T.checkpoint_file}")
+
+            # if os.path.isdir(self.T.checkpoint_opt_file):
+            #     self.metric_save()
+
+    def build_eval_op(self, *args):
+        # Initialize Eval Trainer
+        raise NotImplementedError
 
     def eval_fun(self, eval_dataset, checkpoint_file=None):
-        # TODO: peft
         if checkpoint_file is not None:
             ckt_param = load_peft_weights(checkpoint_file)
             self.deserialize_model(ckt_param)
+        # self.model = self.model.merge_and_unload()
 
-        # Initialize Eval Trainer
-        eval_op = LocalSFTTrainer(
-            model=self.model,
-            args=self.eval_args,
-            tokenizer=self.data.tokenizer,
-            data_collator=self.data.coll_fn(self.model),
-            compute_metrics=self.metric.calculate_metric,
-        )
+        eval_op = self.build_eval_op()
         eval_result = eval_op.evaluate(
             eval_dataset,
         )
@@ -165,7 +161,6 @@ class BaseEvaluator(BaseEngine):
 
         self.deserialize_model(self.best_glo_params)
         _, test_dataset = self.get_dataset(-1, "test")
-
         test_metric = self.eval_fun(
             eval_dataset=test_dataset)["eval_result"]
 
@@ -175,8 +170,12 @@ class BaseEvaluator(BaseEngine):
         self.global_test_best_metric = global_test_best_metric[0:-1]
 
         self.logger.debug(f"zst metric: {self.global_test_best_metric}")
-        self.metric_save()
+        self.logger.debug(f"zst output file: {self.T.checkpoint_opt_file}")
+        # self.metric_save()
 
-    @property
-    def role(self):
-        return self.F.role
+    def on_eval_end(self):
+        # local test: save metric and results
+        # self.metric_save()
+        # openai test:
+        # build openai test
+        ...

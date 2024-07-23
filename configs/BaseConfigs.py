@@ -39,16 +39,18 @@ class Config(ABC):
         if self.F.log_valid_len and self.F.log_valid_len != 0:
             self.F.save_valid_len = 0
         elif self.F.save_valid_len == 0:
-            assert self.T.zero_test
+            assert self.T.do_zst
             # raise ValueError(f"invalid input log_valid_len={self.F.log_valid_len} "
             #                  f"and save_valid_len={self.F.save_valid_len}")
-        if self.T.zero_test:
+        if self.T.do_zst:
             self.F.save_valid_len = 0
             self.F.log_valid_len = 0
 
     def config_check_trainer(self):
         if self.T.local_rank != -1:
             self.T.ddp_find_unused_parameters = False
+        if self.T.test_openai:
+            self.T.save_outputs = True
         if self.T.save_outputs:
             self.T.include_inputs_for_metrics = True
 
@@ -149,7 +151,7 @@ def build_metric_line(config, times):
     if config.M.tuning_type:
         key_name, key_abb = get_delta_key(config.M.tuning_type)
         grid_info = "".join([key_abb, str(getattr(config.M, key_name, ""))])
-    elif config.T.zero_test:
+    elif config.T.do_zst:
         grid_info = "zs"
     registry.register("grid_info", grid_info)
 
@@ -217,7 +219,7 @@ def amend_config(model_args, data_args, training_args, federated_args):
     make_sure_dirs(config.T.save_dir, role)
 
     # set phase
-    if config.T.zero_test:
+    if config.T.do_zst:
         phase = "zst"
     elif config.T.do_train:
         phase = "train"
@@ -226,6 +228,9 @@ def amend_config(model_args, data_args, training_args, federated_args):
     else:
         phase = "predict"
     registry.register("phase", phase)
+    #
+    if phase != "train":
+        config.T.load_in_8bit = False
 
     # set metric log path
     config.T.metric_file = os.path.join(config.T.save_dir, f"{config.M.model_type}.eval")

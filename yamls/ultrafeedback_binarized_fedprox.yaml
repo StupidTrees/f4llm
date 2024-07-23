@@ -45,10 +45,11 @@ training_config:
 #  weight_decay: 0.
 #  warmup_ratio: 0.03
   # linear, cosine
-  lr_scheduler_type: linear
+  lr_scheduler_type: cosine
 #  dataloader_num_workers: 0
 
-  metric_name: lcp
+  eval_name: pairwise
+  metric_name: pairwise
   is_decreased_valid_metric: false # ppl:true
 
   do_sample: false

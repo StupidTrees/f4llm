@@ -139,14 +139,14 @@ class FedBaseDataManger(ABC):
             train_examples_num_dict[idx] = len(client_train_list)
             train_features_dict[idx] = train_features_all[client_train_list]
 
-            if "valid" not in partition_data:
+            if "valid" in partition_data:
                 client_valid_list = partition_data["valid"][idx]
                 valid_examples_num_dict[idx] = len(client_valid_list)
                 valid_features_dict[idx] = valid_features_all[client_valid_list]
             else:
                 valid_examples_num_dict[idx], valid_features_dict[idx] = 0, []
 
-            if "test" not in partition_data:
+            if "test" in partition_data:
                 client_test_list = partition_data["test"][idx]
                 test_examples_num_dict[idx] = len(client_test_list)
                 test_features_dict[idx] = test_features_all[client_test_list]

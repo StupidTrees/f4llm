@@ -44,7 +44,7 @@ class TrainArguments(TrainingArguments):
     is_decreased_valid_metric: bool = field(
         default=False
     )
-    zero_test: bool = field(
+    do_zst: bool = field(
         default=False
     )
     patient_times: int = field(
@@ -68,6 +68,12 @@ class TrainArguments(TrainingArguments):
         default=False, metadata={"help": "load the model in 4 bits precision"})
     eval_reuse: bool = field(
         default=True, metadata={"help": "reusing eval results."}
+    )
+    test_best: bool = field(
+        default=False, metadata={"help": "use best model for test."}
+    )
+    test_openai: bool = field(
+        default=False, metadata={"help": "metric for openai-test."}
     )
     # Used for DPO
     average_log_prob: bool = field(

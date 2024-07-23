@@ -116,11 +116,11 @@ class Registry:
     @classmethod
     def register_eval(cls, name):
         def wrap(func):
-            from evals.evaluations import BaseEval
+            from evals.BaseEvaluator import BaseEvaluator
 
             assert issubclass(
-                func, BaseEval
-            ), "All evaluation must inherit utils.evaluations.BaseEval class"
+                func, BaseEvaluator
+            ), "All evaluation must inherit utils.BaseEvaluator.BaseEvaluator class"
             cls.mapping["eval_name_mapping"][name] = func
             return func
 

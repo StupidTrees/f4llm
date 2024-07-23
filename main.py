@@ -9,9 +9,9 @@ from utils.register import registry
 def run_experiment(config):
     phase = registry.get("phase")
     if phase == "train":
-        engine = registry.get_fedtrainer(config.federated_config.fl_algorithm)()
+        engine = registry.get_fedtrainer(config.F.fl_algorithm)()
     else:
-        engine = registry.get_fedtrainer(config.federated_config.fl_algorithm)()
+        engine = registry.get_eval_class(config.T.eval_name)()
     engine.run()
 
 

@@ -21,6 +21,9 @@ class DataTrainingArguments:
     partition_dataset_path: Optional[str] = field(
         default=None, metadata={"help": "The federated partition path of the raw data (.pkl)"}
     )
+    eval_data_path: Optional[str] = field(
+        default=None, metadata={"help": "The extra eval data path (.pkl)"}
+    )
     data_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
@@ -137,6 +140,7 @@ class DataTrainingArguments:
             )
         },
     )
+
 
     def __post_init__(self):
 
