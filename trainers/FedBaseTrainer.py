@@ -27,6 +27,30 @@ from contribs.centralized.miscs import CenEndEvalStepCallback, decoded_data
 
 
 class BaseTrainer(ABC):
+    """
+    Base Federated Trainer for all trainers.
+    The trainer is run on the server or client side. It is
+    responsible for building the dataset, model, metric, and communicators, and running the training process.
+
+
+    Attributes:
+        M (configs.ModelArguments): Model configuration
+        D (configs.DataArguments): Data configuration
+        T (configs.TrainingArguments): Training configuration
+        F (configs.FLArguments): Federated Learning configuration
+
+        is_fl (bool): Whether to use federated learning
+        role (str): Role of the trainer, either "server" or "client"
+        client_num (int): Number of clients
+        param_list (list): Used for global update
+        loss_list (list): Used for loss-aware aggregate
+
+        round (int): Current training round
+        phase (str): Phase of the training process
+        logger (Logger): Logger object
+        debug (bool): Whether to enable debug mode
+    """
+
     def __init__(self, *args):
 
         config = registry.get("config")
@@ -154,6 +178,13 @@ class BaseTrainer(ABC):
         self._build_communicators()
 
     def run(self):
+        """
+        Run the trainer according to the phase
+        For training phase, it will run the federated training process
+        For eval phase, it will run the evaluation process
+        For zero-shot test phase, it will run the zero-shot test process
+        For predict phase, it will run the prediction process
+        """
         self.logger.critical(f" {self.role.upper()} {self.phase.upper()} START")
         if self.phase == "train":
             self.train()
@@ -165,6 +196,10 @@ class BaseTrainer(ABC):
             self.predict()
 
     def train(self):
+        """
+        Run the training process. For federated learning, it will run the federated training process, otherwise it
+        will run the centralized training
+        """
         if self.is_fl:
             self.server_run() if self.role == "server" else self.client_run()
         else:
@@ -337,7 +372,7 @@ class BaseTrainer(ABC):
 
         train_loss = round(train_result.training_loss, 3)
         self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
-                         f"{self.T.learning_rate*10000:.2f}e-4_Loss={train_loss}")
+                         f"{self.T.learning_rate * 10000:.2f}e-4_Loss={train_loss}")
         return train_loss
 
     def global_update(self, param_list, loss_list):
@@ -350,7 +385,7 @@ class BaseTrainer(ABC):
         if self.F.save_valid_len and self.round % self.F.save_valid_len == 0:
             should_save = True
 
-        this_round_loss = sum(loss_list)/len(loss_list)
+        this_round_loss = sum(loss_list) / len(loss_list)
         self.logger.warning(
             f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(param_list)}_"
             f"Evals={should_eval}_Save={should_save}_Loss={this_round_loss:.3f}"
@@ -474,7 +509,7 @@ class BaseTrainer(ABC):
             weights = [1.0 for _ in range(len(serialized_params_list))]
 
         total = sum(weights)
-        weights = [weight/total for weight in weights]
+        weights = [weight / total for weight in weights]
         self.logger.info(f"This round clients' weights: {[round(weight, 3) for weight in weights]}")
 
         for key in serialized_parameters.keys():

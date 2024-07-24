@@ -8,7 +8,9 @@ from utils.general import custom_pad_sequence
 from datas.base_data import FedBaseDataManger, FedBaseDataset
 from tools.prompts import all_prompts
 
-"""This module contains the data manager classes for the Direct Preference Optimization (DPO) datasets. The classes 
+"""
+
+This module contains the data manager classes for the Direct Preference Optimization (DPO) datasets. The classes 
 are registered in the data registry for easy access and configuration. Each data class inherits from the 
 FedBaseDataManger class, which provides common methods and properties for the data classes. 
 
