@@ -2,17 +2,17 @@ data_config:
   data_name: dpo
   model_max_length: 1024
   debug_mode: false
-  overwrite_cache: true
+  overwrite_cache: false
   template_name: llama_chat_default
 
 federated_config:
-  alpha: 0 # 1.0/10.0/0.1
-  clients_num: 100
-  rounds: 50
-  sample: 0.02
+  alpha: -1
+  clients_num: 20
+  rounds: 20
+  sample: 0.1
 
   log_valid_len:  # also effects in cen
-  save_valid_len: 10
+  save_valid_len: 4
 
   test_rounds: false
   log_test_len:
@@ -47,6 +47,9 @@ training_config:
   eval_name: pairwise
   metric_name: pairwise
   is_decreased_valid_metric: false # ppl:true
+  eval_device: 3
+  eval_port: 10001
+  eval_during_train: true
 
   do_sample: false
   generation_max_length: 512

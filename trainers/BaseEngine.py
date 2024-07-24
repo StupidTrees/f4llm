@@ -1,5 +1,5 @@
-
 import copy
+import os
 from copy import deepcopy
 
 from peft import (
@@ -120,8 +120,6 @@ class BaseEngine(object):
 
     def serialize_model_parameters(self):
         if is_petuning(self.M.tuning_type):
-            # model_parameters = SerializationTool.serialize_peft_model(
-            #     self.model, tuning_type=self.M.tuning_type)
             model_parameters = deepcopy(get_peft_model_state_dict(self.model))
         else:
             model_parameters = SerializationTool.serialize_model(self.model)
@@ -137,6 +135,22 @@ class BaseEngine(object):
         if self.debug:
             return
         metric_save(self, self.T, self.logger)
+
+    def build_eval_cmd(self):
+        base_opts = [
+            "main.py", "--do_eval",
+            "--raw_dataset_path", self.D.raw_dataset_path,
+            "--partition_dataset_path", self.D.partition_dataset_path,
+            "--model_name_or_path", self.M.model_name_or_path,
+            "--output_dir", os.path.dirname(self.T.output_dir),
+            "--model_type", self.M.model_type,
+            "--task_name", self.D.task_name,
+            "--fl_algorithm", self.F.fl_algorithm,
+            "--config_path", self.T.config_path,
+            "--role", "client",
+            "--times", self.T.times
+        ]
+        return base_opts
 
     @property
     def role(self):

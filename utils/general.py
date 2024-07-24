@@ -15,6 +15,7 @@ import numpy as np
 import psutil
 from peft import get_peft_model_state_dict
 
+from trainers.LocBaseSFT import LocalSFTTrainer
 from utils.constants import petuning_type
 from utils.register import registry
 
@@ -232,6 +233,14 @@ def metric_save(trainer, training_config, logger=None):
     # trainer.metric_line += f"valid_{trainer.metric_name}={trainer.global_valid_best_metric:.3f}_"
     # trainer.metric_line += f"test_{trainer.global_test_best_metric}"
     # file_write(trainer.metric_line, training_config.metric_file, "a+")
+
+
+def model_save(model, args, checkpoint_file):
+    save_op = LocalSFTTrainer(
+        model=model,
+        args=args,
+    )
+    save_op.save_model(checkpoint_file)
 
 
 def setup_imports():

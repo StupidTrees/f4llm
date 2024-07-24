@@ -53,14 +53,8 @@ class TrainArguments(TrainingArguments):
     do_grid: bool = field(
         default=False, metadata={"help": "whether to do grid search"}
     )
-    norm_type: int = field(
-        default=2, metadata={"help": "using for DP"}
-    )
-    grid_hyper_parameters: str = field(
+    not_overwrite_args: str = field(
         default=None, metadata={"help": "using for preventing overwriting"}
-    )
-    eval_type: str = field(
-        default="llm-eval", metadata={"help": "choose from [bench-eval, llm-eval]"}
     )
     load_in_8bit: Optional[bool] = field(
         default=False, metadata={"help": "load the model in 8 bits precision"})
@@ -73,6 +67,15 @@ class TrainArguments(TrainingArguments):
         default=False, metadata={"help": "use best model for test."}
     )
     test_openai: bool = field(
+        default=False, metadata={"help": "metric for openai-test."}
+    )
+    eval_port: str = field(
+        default="10001", metadata={"help": "metric for openai-test."}
+    )
+    eval_device: str = field(
+        default="0,1", metadata={"help": "metric for openai-test."}
+    )
+    eval_during_train: bool =field(
         default=False, metadata={"help": "metric for openai-test."}
     )
     # Used for DPO

@@ -55,7 +55,7 @@ class BaseModels(ABC):
         if self.role == "server":
             device_map = "cpu"
         else:
-            device_map = "auto"
+            device_map = None
 
         backbone = AutoModelForCausalLM.from_pretrained(
             self.model_config.model_name_or_path,

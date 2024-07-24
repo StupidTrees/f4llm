@@ -2,18 +2,16 @@ import os
 import copy
 import time
 import random
-import torch
+import subprocess
 
 from commus.message import Message
 from commus.communicator import gRPCCommunicationManager
 from contribs.centralized.miscs import CenEndEvalStepCallback
 
 from utils.register import registry
-from utils.general import metric_save, is_best, pickle_read, run_process
-from utils.general import setup_seed, cosine_learning_rate, LoadBalanceSampling
-
 from trainers.BaseEngine import BaseEngine
-from trainers.LocBaseSFT import LocalSFTTrainer
+from utils.general import metric_save, model_save
+from utils.general import setup_seed, cosine_learning_rate, LoadBalanceSampling
 
 
 class BaseTrainer(BaseEngine):
@@ -98,9 +96,13 @@ class BaseTrainer(BaseEngine):
 
     def server_run(self):
         self.server_join()
+        self.server_valid()
+        self.server_process()
+        self.on_server_end()
+
+    def server_process(self):
 
         while self.round < self.F.rounds:
-            # TODO server select client
             self.client_ids = self.selections[self.round]
             self.metric_log["train_logs"].append([0.0 for _ in range(self.F.client_num_in_total)])
             self.logger.critical(f"Round {self.round + 1} start, Selected Clients: {self.client_ids}")
@@ -134,9 +136,85 @@ class BaseTrainer(BaseEngine):
                         self.metric_log["train_logs"][self.round][client_id] = msg.content['loss'][client_id]
 
             # aggregation
-            self.global_update(params_list, loss_list)
+            self.server_update(params_list, loss_list)
 
-        self.on_server_end()
+    def server_update(self, param_list, loss_list):
+        assert len(param_list) <= self.F.client_num_per_round
+
+        self.round += 1
+        should_eval, should_save = False, False
+        if self.F.log_valid_len and self.round % self.F.log_valid_len == 0:
+            should_eval = True
+        if self.F.save_valid_len and self.round % self.F.save_valid_len == 0:
+            should_save = True
+
+        this_round_loss = sum(loss_list)/len(loss_list)
+        self.logger.warning(
+            f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(param_list)}_"
+            f"Evals={should_eval}_Save={should_save}_Loss={this_round_loss:.3f}"
+        )
+
+        # Global Aggregation
+        if self.F.weight_type == "num":
+            weights = [self.data.train_examples_num_dict[client_id] for client_id in self.client_ids]
+        else:
+            weights = None
+
+        serialized_parameters = self.server_aggregator(param_list, weights)
+        self.deserialize_model(serialized_parameters)
+
+        if should_save and self.phase == "train" and not self.debug:
+            checkpoint_file = os.path.join(self.T.checkpoint_dir, f"round-{self.round}")
+            self.deserialize_model(serialized_parameters)
+            model_save(self.model, self.eval_args, checkpoint_file)
+            self.logger.debug(f"Model Saved in: {checkpoint_file}")
+
+        registry.register("round", self.round)
+        self.model_parameters = copy.deepcopy(serialized_parameters)
+
+    def server_valid(self):
+        if self.T.eval_during_train:
+            eval_opts = self.build_eval_cmd()
+            eval_opts.extend(["--eval_name", "ayn_local_eval",
+                              "--not_overwrite_args", "eval_name",
+                              "--checkpoint_file", f"{self.T.checkpoint_dir}"])
+            eval_opts = ["python"] + eval_opts
+            subprocess.Popen(eval_opts)
+
+    def server_aggregator(self, serialized_params_list, weights=None):
+        """fl algorithm, default fedavg"""
+        serialized_parameters = self.serialize_model_parameters()
+
+        if weights is None:
+            weights = [1.0 for _ in range(len(serialized_params_list))]
+
+        total = sum(weights)
+        weights = [weight/total for weight in weights]
+        self.logger.info(f"This round clients' weights: {[round(weight, 3) for weight in weights]}")
+
+        for key in serialized_parameters.keys():
+            serialized_parameters[key] = sum(
+                [serialized_params_list[client][key] * weights[client] for client in
+                 range(len(serialized_params_list))])
+
+        return serialized_parameters
+
+    def on_server_end(self):
+        """Using best parameters for prediction"""
+        if not self.debug:
+            metric_save(self, self.T, self.logger)
+        self.logger.critical(f"Train done, Please Eval and Test in {self.T.checkpoint_dir}")
+
+        self.comm_manager.send(
+            Message(
+                message_type=101,
+                sender="0",
+                receiver=list(self.comm_manager.communicators.keys()),
+                content={
+                    '': '',
+                }
+            )
+        )
 
     def client_join(self):
         self.comm_manager.send(
@@ -164,9 +242,64 @@ class BaseTrainer(BaseEngine):
             elif msg.message_type == 200:
                 model_parameters = msg.content['model']
                 self.round = msg.content['round']
-                # TODO 直接传递list
                 client_ids = msg.content['client_ids'][int(self.F.client_name)]
-                self.local_process(client_ids, model_parameters)
+                self.client_process(client_ids, model_parameters)
+
+    def client_process(self, client_ids, model_parameters):
+        param_list, loss_list = {}, {}
+        for idx in client_ids:
+            train_loss = self.client_train(
+                idx=idx,
+                model_parameters=model_parameters
+            )
+            updated_model_parameters = self.serialize_model_parameters()
+            param_list[idx] = updated_model_parameters
+            loss_list[idx] = train_loss
+
+        self.comm_manager.send(
+            Message(
+                message_type=200,
+                sender=self.F.client_name,
+                receiver=[self.F.server_ip],
+                content={
+                    'model': param_list,
+                    'loss': loss_list
+                }
+            )
+        )
+
+    def client_train(self, idx, model_parameters, *args, **kwargs):
+        self.logger.debug(f"\n{'=' * 37}\n>>> Subserver={self.F.client_name}_"
+                          f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 37}")
+
+        self.deserialize_model(model_parameters)
+        train_dataset, eval_dataset = self.get_dataset(idx)
+
+        # manually schedule the learning rate
+        self.T.learning_rate = cosine_learning_rate(
+            self.round, self.F.rounds, self.eval_args.learning_rate, 1e-6)
+
+        # Initialize local Trainer
+        train_op = registry.get_loctrainer(self.F.local_trainer_name)(
+            model=self.model,
+            args=self.T,
+            train_dataset=train_dataset,
+            tokenizer=self.data.tokenizer,
+            data_collator=self.data.coll_fn(self.model),
+            compute_metrics=self.metric.calculate_metric,
+            # callbacks=None
+            # optimizers
+        )
+        train_result = train_op.train()
+        del train_op
+
+        train_loss = round(train_result.training_loss, 3)
+        self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
+                         f"{self.T.learning_rate*10000:.2f}e-4_Loss={train_loss}")
+        return train_loss
+
+    def on_client_end(self):
+        self.logger.critical(f"Subserver {self.F.client_name} Train done")
 
     def cen_train(self, client_id=-1):
 
@@ -200,197 +333,3 @@ class BaseTrainer(BaseEngine):
         )
         train_op.train()
 
-    def local_process(self, client_ids, model_parameters):
-        param_list, loss_list = {}, {}
-        for idx in client_ids:
-            train_loss = self.local_train(
-                idx=idx,
-                model_parameters=model_parameters
-            )
-            updated_model_parameters = self.serialize_model_parameters()
-            param_list[idx] = updated_model_parameters
-            loss_list[idx] = train_loss
-
-        self.comm_manager.send(
-            Message(
-                message_type=200,
-                sender=self.F.client_name,
-                receiver=[self.F.server_ip],
-                content={
-                    'model': param_list,
-                    'loss': loss_list
-                }
-            )
-        )
-
-    def local_train(self, idx, model_parameters, *args, **kwargs):
-        self.logger.debug(f"\n{'=' * 37}\n>>> Subserver={self.F.client_name}_"
-                          f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 37}")
-
-        self.deserialize_model(model_parameters)
-        train_dataset, eval_dataset = self.get_dataset(idx)
-
-        # manually schedule the learning rate
-        self.T.learning_rate = cosine_learning_rate(
-            self.round, self.F.rounds, self.eval_args.learning_rate, 1e-6)
-
-        # Initialize local Trainer
-        train_op = registry.get_loctrainer(self.F.local_trainer_name)(
-            model=self.model,
-            args=self.T,
-            train_dataset=train_dataset,
-            tokenizer=self.data.tokenizer,
-            data_collator=self.data.coll_fn(self.model),
-            compute_metrics=self.metric.calculate_metric,
-            # callbacks=None
-            # optimizers
-        )
-        train_result = train_op.train()
-        del train_op
-
-        train_loss = round(train_result.training_loss, 3)
-        self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
-                         f"{self.T.learning_rate*10000:.2f}e-4_Loss={train_loss}")
-        return train_loss
-
-    def global_update(self, param_list, loss_list):
-        assert len(param_list) <= self.F.client_num_per_round
-
-        self.round += 1
-        should_eval, should_save = False, False
-        if self.F.log_valid_len and self.round % self.F.log_valid_len == 0:
-            should_eval = True
-        if self.F.save_valid_len and self.round % self.F.save_valid_len == 0:
-            should_save = True
-
-        this_round_loss = sum(loss_list)/len(loss_list)
-        self.logger.warning(
-            f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(param_list)}_"
-            f"Evals={should_eval}_Save={should_save}_Loss={this_round_loss:.3f}"
-        )
-
-        # Global Aggregation
-        if self.F.weight_type == "num":
-            weights = [self.data.train_examples_num_dict[client_id] for client_id in self.client_ids]
-        else:
-            weights = None
-
-        serialized_parameters = self.aggregator(param_list, weights)
-        self.deserialize_model(serialized_parameters)
-
-        if should_eval:
-            # TODO 启动额外程序进行推理
-            self.fed_valid()
-
-        if should_save:
-            self.model_save(serialized_parameters)
-
-        registry.register("round", self.round)
-        self.model_parameters = copy.deepcopy(serialized_parameters)
-
-    def fed_valid(self, idx=-1):
-        # TODO 并行进行模型更新
-        ...
-
-    # fl algorithm default fedavg
-    def aggregator(self, serialized_params_list, weights=None):
-        serialized_parameters = self.serialize_model_parameters()
-
-        if weights is None:
-            weights = [1.0 for _ in range(len(serialized_params_list))]
-
-        total = sum(weights)
-        weights = [weight/total for weight in weights]
-        self.logger.info(f"This round clients' weights: {[round(weight, 3) for weight in weights]}")
-
-        for key in serialized_parameters.keys():
-            serialized_parameters[key] = sum(
-                [serialized_params_list[client][key] * weights[client] for client in
-                 range(len(serialized_params_list))])
-
-        return serialized_parameters
-
-    # end function
-    def on_round_end(self, result):
-        """Used for Global Update Logging"""
-        test_metrics = result["eval_result"]
-        test_metric = test_metrics[self.metric_name]
-
-        with self.T.main_process_first(desc="Model & Metric Saving"):
-            if is_best(self.global_valid_best_metric, test_metric, self.metric.is_decreased_valid_metric):
-                self.global_valid_best_metric = test_metric
-                self.best_glo_params = self.serialize_model_parameters()
-
-        # base train info
-        self.logger.info(f"{self.D.task_name}-{self.M.model_type} "
-                         f"train with client={self.F.clients_num}_"
-                         f"alpha={self.F.alpha}_"
-                         f"epoch={self.T.num_train_epochs}_"
-                         f"seed={self.T.seed}_"
-                         f"comm_round={self.F.rounds}")
-
-        self.logger.debug(f"{self.F.fl_algorithm} Eval Round:{self.round}, "
-                          f"Current {self.metric_name}:{test_metric:.3f}, "
-                          f"Best {self.metric_name}:{self.global_valid_best_metric:.3f}")
-
-        self.metric_log["eval_logs"][f"round_{self.round}"] = test_metrics
-
-    def on_server_end(self):
-        """Using best parameters for prediction"""
-        self.global_test_best_metric = ""
-        if not self.is_fl or self.F.save_valid_len:
-            self.best_glo_params = registry.get("best_glo_params", self.model_parameters)
-            self.global_valid_best_metric = registry.get("best_valid_metric", 0.0)
-
-        if self.F.save_valid_len:
-            if not self.debug:
-                metric_save(self, self.T, self.logger)
-            self.logger.critical(f"Train done, Please Eval and Test in {self.T.checkpoint_dir}")
-        else:
-            self.logger.critical("Final Test Start")
-            self.deserialize_model(self.best_glo_params)
-            _, test_dataset = self.get_dataset(-1, "test")
-            test_result = self.eval_fun(test_dataset)
-            global_test_best_metric = test_result["eval_result"]
-
-            for metric_name, metric in global_test_best_metric.items():
-                self.global_test_best_metric += f"{metric_name}={metric:.3f}_"
-            self.global_test_best_metric = self.global_test_best_metric[0:-1]
-
-            self.logger.critical(f"{self.F.fl_algorithm.upper()} Test, "
-                                 f"Best Model Metric, {self.global_test_best_metric}")
-            self.save_all()
-
-        self.comm_manager.send(
-            Message(
-                message_type=101,
-                sender="0",
-                receiver=list(self.comm_manager.communicators.keys()),
-                content={
-                    '': '',
-                }
-            )
-        )
-
-    def on_client_end(self):
-        self.logger.critical(f"Subserver {self.F.client_name} Train done")
-
-    def save_all(self):
-        self.metric_save()
-        self.model_save()
-
-    def model_save(self, serialized_parameters=None):
-        if self.phase != "train" or self.debug:
-            return
-
-        if self.F.save_valid_len:
-            checkpoint_file = os.path.join(self.T.checkpoint_dir, f"round-{self.round}")
-            self.deserialize_model(serialized_parameters)
-            save_op = LocalSFTTrainer(
-                model=self.model,
-                args=self.eval_args,
-            )
-            save_op.save_model(checkpoint_file)
-            self.logger.debug(f"Model Saved in: {checkpoint_file}")
-        else:
-            torch.save(self.best_glo_params, self.T.checkpoint_file)

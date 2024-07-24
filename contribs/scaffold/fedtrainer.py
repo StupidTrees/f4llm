@@ -57,14 +57,14 @@ class ScaffoldTrainer(BaseTrainer):
                 auxiliary_model_list = msg.content['model']['auxiliary_model_list'][int(self.F.client_name)]
                 global_auxiliary = msg.content['model']['global_auxiliary']
                 self.round = msg.content['round']
-                self.local_process(client_ids, model_parameters, auxiliary_model_list, global_auxiliary)
+                self.client_process(client_ids, model_parameters, auxiliary_model_list, global_auxiliary)
 
-    def local_process(self, client_ids, model_parameters, auxiliary_model_list, global_auxiliary):
+    def client_process(self, client_ids, model_parameters, auxiliary_model_list, global_auxiliary):
         param_list, loss_list = {}, {}
         auxiliary_delta_dict_list = {}
 
         for idx in client_ids:
-            train_loss, auxiliary_model, auxiliary_delta_dict = self.local_train(
+            train_loss, auxiliary_model, auxiliary_delta_dict = self.client_train(
                 idx=idx,
                 model_parameters=model_parameters,
                 auxiliary_model_list=auxiliary_model_list,
@@ -90,7 +90,7 @@ class ScaffoldTrainer(BaseTrainer):
             )
         )
 
-    def local_train(self, idx, model_parameters, auxiliary_model_list, global_auxiliary):
+    def client_train(self, idx, model_parameters, auxiliary_model_list, global_auxiliary):
         self.logger.debug(f"\n{'=' * 37}\n>>> Subserver={self.F.client_name}_"
                           f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 37}")
 
@@ -128,8 +128,7 @@ class ScaffoldTrainer(BaseTrainer):
                          f"{self.T.learning_rate * 10000:.2f}e-4_Loss={train_loss}")
         return train_loss, auxiliary_model, auxiliary_delta_dict
 
-    def server_run(self):
-        self.server_join()
+    def server_process(self):
 
         while self.round < self.F.rounds:
             # TODO server select client
@@ -175,11 +174,11 @@ class ScaffoldTrainer(BaseTrainer):
                             msg.content['model']['auxiliary_delta_dict_list'][client_id]
 
             # aggregation
-            self.global_update(params_list, loss_list)
+            self.server_update(params_list, loss_list)
 
         self.on_server_end()
 
-    def aggregator(self, serialized_params_list, weights=None):
+    def server_aggregator(self, serialized_params_list, weights=None):
         serialized_parameters = self.serialize_model_parameters()
 
         if weights is None:

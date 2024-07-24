@@ -32,7 +32,7 @@ class FedAdamTrainer(BaseTrainer):
             self.F.fl_algorithm, self.model_parameters, fedopt_tau=self.F.fedopt_tau)
 
     # fed aggregation algorithm: fedadam, fedyogi, fedadagrad
-    def aggregator(self, serialized_params_list, weights=None):
+    def server_aggregator(self, serialized_params_list, weights=None):
         # serialized_parameters = self.model_parameters
         serialized_parameters = self.serialize_model_parameters()
 

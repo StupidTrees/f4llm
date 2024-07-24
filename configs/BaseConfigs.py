@@ -184,14 +184,14 @@ def amend_config(model_args, data_args, training_args, federated_args):
     if config.T.config_path:
         cust_config_path = os.path.join(root_folder, config.T.config_path)
         cust_config = OmegaConf.load(cust_config_path)
-        if config.T.do_grid:
-            grid_hyper_parameters = config.T.grid_hyper_parameters.split(",") if config.T.grid_hyper_parameters else []
+
+        not_overwrite_args = config.T.not_overwrite_args.split(",") if config.T.not_overwrite_args else []
         for key, values in cust_config.items():
             if values:
                 args = getattr(config, key)
                 for k, v in values.items():
-                    if config.T.do_grid and k in grid_hyper_parameters:
-                        # grid search not overwrite --arg
+                    if k in not_overwrite_args:
+                        # not overwrite --arg
                         continue
                     setattr(args, k, v)
 
@@ -228,9 +228,9 @@ def amend_config(model_args, data_args, training_args, federated_args):
     else:
         phase = "predict"
     registry.register("phase", phase)
-    #
-    if phase != "train":
-        config.T.load_in_8bit = False
+
+    # if phase != "train":
+    #     config.T.load_in_8bit = False
 
     # set metric log path
     config.T.metric_file = os.path.join(config.T.save_dir, f"{config.M.model_type}.eval")
@@ -248,7 +248,7 @@ def amend_config(model_args, data_args, training_args, federated_args):
     config.config_check_valid_len()
     if phase == "eval" or phase == "predict":
         if os.path.isdir(config.T.checkpoint_file):
-            times = config.T.checkpoint_file.split("/")[-1].split("_")[0]
+            times = [item for item in config.T.checkpoint_file.split("/") if item][-1].split("_")[0]
             registry.register("run_time", times)
             config.T.times = times
             config.T.checkpoint_opt_file = None
