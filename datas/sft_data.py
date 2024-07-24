@@ -1,19 +1,41 @@
-import torch
+import copy
+from dataclasses import dataclass
+
 import transformers
 
-import copy
-import random
-from dataclasses import dataclass, field
-from typing import Dict, Optional, Sequence
-from utils.register import registry
-from utils.general import custom_pad_sequence
 from datas.base_data import FedBaseDataManger
 from tools.prompts import all_prompts
+from utils.general import custom_pad_sequence
+from utils.register import registry
 
+"""
+This module contains DataManagers for Supervised Fine-tuning (SFT) tasks. Supervised Fine-tuning (SFT) is a task 
+where the model is fine-tuned on a dataset with supervision signals, take QA as an example, the model is trained to 
+generate the answer given the question. For mainstream auto-regressive generative language models (e.g., GPT2, Llama, 
+etc.), the input is concatenated with the supervision signal, and the model is trained to generate the target 
+sequence.
+ 
+"""
 IGNORE_INDEX = -100
 
 
 def _tokenize_fn(strings, tokenizer, mode='train'):
+    """
+    Tokenize the strings for Auto-regressive Supervised Fine-tuning (SFT) tasks.
+    Args:
+        strings (List[str]): List of strings to tokenize.
+        tokenizer (transformers.PreTrainedTokenizer): Tokenizer object.
+        mode (str): Task mode. Default is 'train'. Train mode will truncate the input to the model's max length.
+
+    Returns:
+        dict: Dictionary containing the tokenized input_ids, labels, input_ids_lens, and labels_lens.
+
+    Examples:
+        >>> _tokenize_fn(["Hello, world!", "How are you?"], tokenizer)
+        {'input_ids': [[101, 7592, 1010, 2088, 999, 102], [101, 2129, 2024, 2017, 1029, 102]],
+         'labels': [[-100, 7592, 1010, 2088, 999, 102], [-100, 2129, 2024, 2017, 1029, 102]],
+         'input_ids_lens': [6, 6], 'labels_lens':
+    """
     truncation = True if mode == "train" else False
     tokenized_list = [
         tokenizer(
@@ -43,7 +65,28 @@ def preprocess(
         tokenizer,
         mode="train"
 ):
-    """Preprocess the data by tokenizing."""
+    """
+    Preprocess the data by tokenizing.
+
+    Args:
+        sources (List[str]): List of source strings.
+        targets (List[str]): List of target strings (supervision signal).
+        tokenizer (transformers.PreTrainedTokenizer): Tokenizer object.
+        mode (str): Task mode. Default is 'train', which will concatenate the source and target strings as training data
+            and mask out the source part in the labels.
+    Returns:
+        dict: Dictionary containing the tokenized input_ids and labels.
+
+    Examples:
+        >>> preprocess(["Hello, world!", "How are you?"], ["I am fine.", "Thank you."], tokenizer, mode="train")
+        {'input_ids': [[101, 7592, 1010, 2088, 999, 102, 1045, 2572, 2986, 1012, 102], [101, 2129, 2024, 2017, 1029, 102, 4067, 2017, 1012, 102]],
+            'labels': [[-100, 7592, 1010, 2088, 999, 102, 1045, 2572, 2986, 1012, 102], [-100, 2129, 2024, 2017, 1029, 102, 4067, 2017, 1012,
+            102]]}
+        >>> preprocess(["Hello, world!", "How are you?"], ["I am fine.", "Thank you."], tokenizer, mode="test")
+        {'input_ids': [[101, 7592, 1010, 2088, 999, 102, 1045, 2572, 2986, 1012, 102], [101, 2129, 2024, 2017, 1029, 102, 4067, 2017, 1012, 102]],
+            'labels': [[101, 1045, 2572, 2986, 1012, 102], [101, 4067, 2017, 1012, 102]]}
+
+    """
     if mode == "train":
         examples = [s + t for s, t in zip(sources, targets)]
         examples_tokenized, sources_tokenized = [_tokenize_fn(strings, tokenizer) for strings in (examples, sources)]
@@ -61,15 +104,39 @@ def preprocess(
 
 @registry.register_data("llama_sft")
 class LlaMaGenDataManger(FedBaseDataManger):
+    """
+    Data manager for supervised fine-tuning tasks on Llama (Decoder-only, auto-regressive).
+    """
+
     def __init__(self):
         super().__init__()
         self._load_data()
 
     def build_inputs(self, prompt_text, text):
+        """
+        Build inputs for the model.
+        Args:
+            prompt_text (str): Prompt text.
+            text (str): Raw text to be processed.
+        Returns:
+            str: Inputs text with prompt embedded.
+        """
         inputs_text = prompt_text.format(text)
         return inputs_text
 
     def process_examples(self, examples, mode="train", verbose=True):
+        """
+        Process examples for supervised fine-tuning tasks.
+
+        Args:
+            examples (List[dict]): List of examples.
+            mode (str): Task mode. Default is 'train'.
+            verbose (bool): Whether to print the first example for debugging.
+
+        Returns:
+            List[dict]: List of processed examples.
+
+        """
         instances = []
         PROMPT_DICT = all_prompts[self.data_config.template_name]
         prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
@@ -107,7 +174,14 @@ class LlaMaGenDataManger(FedBaseDataManger):
         return instances
 
     def coll_fn(self, model):
-        # build data collection functions
+        """
+        Build data collator for supervised fine-tuning tasks.
+        Args:
+            model (transformers.PreTrainedModel): Model object.
+        Returns:
+            Callable: Data collator function.
+        """
+
         @dataclass
         class DataCollatorForSupervisedDataset(object):
             """Collate examples for supervised fine-tuning."""

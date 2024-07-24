@@ -12,3 +12,4 @@ f4llm documentation
 
    commus
    utils
+   models

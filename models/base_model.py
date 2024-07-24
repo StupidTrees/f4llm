@@ -1,20 +1,40 @@
-
-import copy
 from abc import ABC
 
 import torch
-import torch.nn as nn
 from peft import (TaskType, get_peft_model, prepare_model_for_kbit_training,
                   LoraConfig, PrefixTuningConfig)
 from transformers import AutoConfig, BitsAndBytesConfig, AutoModelForCausalLM
 
-from utils.general import is_petuning
-from utils.general import get_parameter_number
-from utils.register import registry
 from models.miscs import build_selector, build_emulator, get_layer_module_name
+from utils.general import get_parameter_number
+from utils.general import is_petuning
+from utils.register import registry
+
+"""
+This module contains the base class 'BaseModels' for all pre-trained models in the project, it provides the basic 
+structure and methods for building and configuring language models. 
+
+Example Usage:
+    from models.base_model import BaseModels
+    from utils.register import registry
+    @registry.register_model("llama2-chat")
+    class LlaMa2Model(BaseModels):
+        ...
+"""
 
 
 class BaseModels(ABC):
+    """
+    Base class for all pre-trained language models
+
+    Attributes:
+        task_name (str): Name of the task
+        model_config (configs.ModelArguments): Model configuration
+        train_config (configs.TrainingArguments): Training configuration
+        logger (Logger): Logger object
+        auto_config (AutoConfig): AutoConfig object for the model
+    """
+
     def __init__(self, task_name):
         super().__init__()
 
@@ -26,6 +46,11 @@ class BaseModels(ABC):
         self.auto_config = self._build_config()
 
     def _build_config(self):
+        """
+        Build the AutoConfig object for the model
+        Returns:
+            AutoConfig: AutoConfig object for the model
+        """
         auto_config = AutoConfig.from_pretrained(
             self.model_config.model_name_or_path,
             trust_remote_code=True,
@@ -33,6 +58,12 @@ class BaseModels(ABC):
         return auto_config
 
     def build_model(self):
+        """
+        Build the language model (quantized) backbone, convert to NAS and/or Delta modules if needed
+
+        Returns:
+            PreTrainedModel: Pre-trained model backbone
+        """
         backbone = self._add_base_model()
 
         backbone = self._add_quantize_model(backbone)
@@ -48,6 +79,12 @@ class BaseModels(ABC):
         return backbone
 
     def _add_base_model(self):
+        """
+        Build the base language model backbone using huggingface AutoModelForCausalLM, quantize if needed
+
+        Returns:
+            PreTrainedModel: Pre-trained model backbone
+        """
         if self.train_config.load_in_8bit or self.train_config.load_in_4bit:
             quantization_config = BitsAndBytesConfig(
                 load_in_8bit=self.train_config.load_in_8bit, load_in_4bit=self.train_config.load_in_4bit
@@ -67,7 +104,12 @@ class BaseModels(ABC):
         return backbone
 
     def _add_nas_model(self, backbone):
+        """
+        Convert the backbone model to NAS model (selector, emulator, ...)
 
+        Returns:
+            PreTrainedModel: Pre-trained model backbone with NAS configured
+        """
         if self.model_config.nas_type == "selector":
             backbone_copy = build_selector(backbone, self.model_config)
         elif self.model_config.nas_type == "emulator":
@@ -82,7 +124,15 @@ class BaseModels(ABC):
         return backbone_copy
 
     def _add_delta_model(self, backbone):
+        """
+        Convert the backbone model to Delta model (PETuning)
 
+        Args:
+            backbone (PreTrainedModel): backbone language model
+
+        Returns:
+            PreTrainedModel: Pre-trained model backbone with Delta configured
+        """
         if is_petuning(self.model_config.tuning_type):
             # opendelta discard
             # delta_args = registry.get("delta_config")
@@ -125,7 +175,14 @@ class BaseModels(ABC):
         return backbone
 
     def _add_quantize_model(self, backbone):
+        """
+        Quantize the backbone model
 
+        Args:
+            backbone (PreTrainedModel): backbone language model
+        Returns:
+            PreTrainedModel: Pre-trained model backbone with quantization configured
+        """
         if self.train_config.load_in_8bit or self.train_config.load_in_4bit:
             self.logger.info(f"Quantized to 8bit")
             backbone = prepare_model_for_kbit_training(
@@ -152,4 +209,10 @@ class BaseModels(ABC):
 
     @property
     def target_modules(self):
+        """
+        Target modules for PETuning
+
+        Returns:
+            List[str]: List of target modules' names
+        """
         return None
