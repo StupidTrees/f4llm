@@ -171,7 +171,6 @@ class BaseEvaluator(BaseEngine):
 
         self.logger.debug(f"zst metric: {self.global_test_best_metric}")
         self.logger.debug(f"zst output file: {self.T.checkpoint_opt_file}")
-        # self.metric_save()
 
     def on_eval_end(self):
         # local test: save metric and results
