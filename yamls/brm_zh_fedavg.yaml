@@ -1,25 +1,24 @@
 data_config:
-  data_name: dpo
+  data_name: rm
   model_max_length: 1024
-  debug_mode: true
-  overwrite_cache: false
-  template_name: llama_chat_default
+  debug_mode: false
+  overwrite_cache: true
+  template_name: llama_zh_rm
 
 federated_config:
   alpha: -1
   clients_num: 20
-  rounds: 20
+  rounds: 4
   sample: 0.1
 
   log_valid_len:  # also effects in cen
-  save_valid_len: 4
+  save_valid_len: 2
 
   test_rounds: false
   log_test_len:
 
   pson: false
 
-  local_trainer_name: fedavg_dpo
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -30,7 +29,7 @@ model_config:
   lora_dropout: 0.05
   num_virtual_tokens: 64
   bottleneck_dim: 16
-  model_type: llama2-base
+  model_type: llama2-rm
 
 training_config:
   seed: 42
@@ -45,12 +44,13 @@ training_config:
 #  warmup_ratio: 0.03
   lr_scheduler_type: cosine # linear, cosine
 
-  eval_name: pairwise
+  local_trainer_name: fedavg_rm
+  eval_name: local
   metric_name: pairwise
   is_decreased_valid_metric: false # ppl:true
   eval_device: 3
   eval_port: 10001
-  eval_during_train: true
+  eval_during_train: false
 
   do_sample: false
   generation_max_length: 512

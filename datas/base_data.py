@@ -258,7 +258,8 @@ class FedBaseDataManger(ABC):
             use_fast=False,
             model_max_length=self.model_max_length
         )
-        if self.model_config.model_type in ["llama2-base", "tinyllama"]:
+        # if self.model_config.model_type in ["llama2-base", "tinyllama"]:
+        if "llama" in self.model_config.model_type:
             self.tokenizer.pad_token = self.tokenizer.unk_token
         elif self.model_config.model_type in ["qwen"]:
             self.tokenizer.eos_token = self.tokenizer.decode(self.tokenizer.eod_id)

@@ -5,6 +5,10 @@ from transformers import TrainingArguments
 
 @dataclass
 class TrainArguments(TrainingArguments):
+    local_trainer_name: str = field(
+        default="fedavg_sft",
+        metadata={"help": "The name of the local trainer"},
+    )
     times: int = field(
         default=None, metadata={"help": "the identification of each runs."}
     )

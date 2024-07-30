@@ -103,7 +103,6 @@ class LocalDPOTrainer(Trainer):
             ref_rejected_entropy=ref_rejected_entropy.detach(),
             chosen_ce_loss=-chosen_logps.detach(),
             rejected_ce_loss=-rejected_logps.detach(),
-
         )
 
         return (loss, outputs) if return_outputs else loss

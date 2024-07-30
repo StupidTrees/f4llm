@@ -24,6 +24,9 @@ class DataTrainingArguments:
     eval_data_path: Optional[str] = field(
         default=None, metadata={"help": "The extra eval data path (.pkl)"}
     )
+    llm_eval_name: Optional[str] = field(
+        default="alpaca", metadata={"help": "The eval name for llm-eval"}
+    )
     data_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )

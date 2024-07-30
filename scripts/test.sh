@@ -31,13 +31,12 @@ else
     model_name_or_path=""
 fi
 
-# example: bash ./scripts/run_all.sh /userhome fed4llm llama2-base fedavg ultrafeedback_binarized 10001 0
+# example: bash ./scripts/test.sh /userhome f4llm tinyllama fedavg brm_zh 10001 012
 python main.py \
 --do_train \
 --raw_dataset_path /userhome/data/${project_name}/${task_name}_data.pkl \
 --partition_dataset_path /userhome/data/${project_name}/${task_name}_partition.pkl \
 --model_name_or_path ${model_name_or_path} \
---model_type ${model_type} \
 --output_dir ${run_dirs}/output/${project_name}/ \
 --task_name ${task_name} \
 --fl_algorithm ${algorithm} \

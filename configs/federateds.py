@@ -9,10 +9,6 @@ class FederatedTrainingArguments:
         default="fedavg",
         metadata={"help": "The name of the federated learning algorithm"},
     )
-    local_trainer_name: str = field(
-        default="fedavg",
-        metadata={"help": "The name of the local trainer"},
-    )
     clients_num: int = field(
         default=10,
         metadata={"help": "The number of participant clients"},

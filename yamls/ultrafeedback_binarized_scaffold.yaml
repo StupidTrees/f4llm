@@ -19,7 +19,6 @@ federated_config:
 
   pson: false
 
-  local_trainer_name: scaffold_dpo
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -56,7 +55,7 @@ training_config:
   eval_name: pairwise
   metric_name: pairwise
   is_decreased_valid_metric: false # ppl:true
-
+  local_trainer_name: scaffold_dpo
   do_sample: false
   generation_max_length: 512
 

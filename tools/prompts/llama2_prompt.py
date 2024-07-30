@@ -1,5 +1,4 @@
 
-
 LLAMA_ALPACA_PROMPT_DICT = {
     "prompt_input": (
         "Below is an instruction that describes a task, paired with an input that provides further context. "
@@ -20,8 +19,12 @@ If a question does not make any sense, or is not factually coherent, explain why
 correct. If you don’t know the answer to a question, please don’t share false information.<</SYS>> {Instruction} [
 /INST]\nResponse:<\s> """
 
+LLAMA_ZH_RM = """"[INST] <<SYS>>\n"
+        "You are a helpful assistant. 你是一个乐于助人的助手。\n"
+        "<</SYS>>\n\n{Instruction} [/INST]"""
 
 LLAMA_PROMPTS = {
     "llama_alpaca": LLAMA_ALPACA_PROMPT_DICT,
-    "llama_chat_default": LLAMA_CHAT_PROMPT
+    "llama_chat_default": LLAMA_CHAT_PROMPT,
+    "llama_zh_rm": LLAMA_ZH_RM
 }

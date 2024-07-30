@@ -280,7 +280,7 @@ class BaseTrainer(BaseEngine):
             self.round, self.F.rounds, self.eval_args.learning_rate, 1e-6)
 
         # Initialize local Trainer
-        train_op = registry.get_loctrainer(self.F.local_trainer_name)(
+        train_op = registry.get_loctrainer(self.T.local_trainer_name)(
             model=self.model,
             args=self.T,
             train_dataset=train_dataset,

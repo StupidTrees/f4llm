@@ -23,7 +23,6 @@ federated_config:
   fedopt_eta: 1e-3
   fedopt_tau: 1e-3
 
-  local_trainer_name: fedadam_sft
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -52,7 +51,7 @@ training_config:
 
   metric_name: lcp
   is_decreased_valid_metric: false # ppl:true
-
+  local_trainer_name: fedadam_sft
   do_sample: false
   generation_max_length: 512
 

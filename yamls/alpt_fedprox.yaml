@@ -20,7 +20,6 @@ federated_config:
 
   prox_mu: 0.02 # default 0.1
 
-  local_trainer_name: fedprox_sft
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -49,7 +48,7 @@ training_config:
 
   metric_name: medsi
   is_decreased_valid_metric: false # ppl:true
-
+  local_trainer_name: fedprox_sft
   do_sample: false
   generation_max_length: 512
 

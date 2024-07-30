@@ -16,6 +16,7 @@ import psutil
 from peft import get_peft_model_state_dict
 
 from trainers.LocBaseSFT import LocalSFTTrainer
+from trainers.LocBaseRM import LocalRMTrainer
 from utils.constants import petuning_type
 from utils.register import registry
 
@@ -236,9 +237,9 @@ def metric_save(trainer, training_config, logger=None):
 
 
 def model_save(model, args, checkpoint_file):
-    save_op = LocalSFTTrainer(
+    save_op = registry.get_loctrainer(args.local_trainer_name)(
         model=model,
-        args=args,
+        args=args
     )
     save_op.save_model(checkpoint_file)
 

@@ -19,7 +19,6 @@ federated_config:
 
   pson: false
 
-  local_trainer_name: fedprox_dpo
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -46,6 +45,7 @@ training_config:
 #  warmup_ratio: 0.03
   # linear, cosine
   lr_scheduler_type: cosine
+  local_trainer_name: fedprox_dpo
 #  dataloader_num_workers: 0
 
   eval_name: pairwise

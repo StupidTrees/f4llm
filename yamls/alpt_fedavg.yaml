@@ -18,7 +18,6 @@ federated_config:
 
   pson: false
 
-  local_trainer_name: fedavg_sft
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -45,7 +44,7 @@ training_config:
   # linear, cosine
   lr_scheduler_type: cosine
 #  dataloader_num_workers: 0
-
+  local_trainer_name: fedavg_sft
   metric_name: lcp
   is_decreased_valid_metric: false # ppl:true
 

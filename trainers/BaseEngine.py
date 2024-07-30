@@ -120,14 +120,14 @@ class BaseEngine(object):
 
     def serialize_model_parameters(self):
         if is_petuning(self.M.tuning_type):
-            model_parameters = deepcopy(get_peft_model_state_dict(self.model))
+            model_parameters = SerializationTool.serialize_peft_model(self.model, self.M.tuning_type)
         else:
             model_parameters = SerializationTool.serialize_model(self.model)
         return model_parameters
 
     def deserialize_model(self, serialized_parameters):
         if is_petuning(self.M.tuning_type):
-            set_peft_model_state_dict(self.model, serialized_parameters)
+            SerializationTool.deserialize_peft_model(self.model, serialized_parameters, self.M.tuning_type)
         else:
             SerializationTool.deserialize_model(self.model, serialized_parameters)
 

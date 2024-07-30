@@ -17,32 +17,20 @@ class BaseModels(ABC):
     def __init__(self, task_name):
         super().__init__()
 
-        self.task_name = task_name
         config = registry.get("config")
+        self.task_name = task_name
         self.model_config = config.model_config
         self.train_config = config.training_config
         self.role = config.F.role
+        self._build_config()
         self.logger = registry.get("logger")
-        self.auto_config = self._build_config()
 
     def _build_config(self):
-        auto_config = AutoConfig.from_pretrained(
+        self.auto_config = AutoConfig.from_pretrained(
             self.model_config.model_name_or_path,
             trust_remote_code=True,
         )
-        return auto_config
 
-    def build_model(self):
-        backbone = self._add_base_model()
-
-        backbone = self._add_quantize_model(backbone)
-
-        if is_petuning(self.model_config.tuning_type):
-            backbone = self._add_delta_model(backbone)
-
-        return backbone
-
-    def _add_base_model(self):
         if self.train_config.load_in_8bit or self.train_config.load_in_4bit:
             quantization_config = BitsAndBytesConfig(
                 load_in_8bit=self.train_config.load_in_8bit, load_in_4bit=self.train_config.load_in_4bit
@@ -57,13 +45,28 @@ class BaseModels(ABC):
         else:
             device_map = None
 
+        self.extra_config = {
+            "device_map": device_map,
+            "torch_dtype": torch_dtype,
+            "quantization_config": quantization_config
+        }
+
+    def build_model(self):
+        backbone = self._add_base_model()
+
+        backbone = self._add_quantize_model(backbone)
+
+        if is_petuning(self.model_config.tuning_type):
+            backbone = self._add_delta_model(backbone)
+
+        return backbone
+
+    def _add_base_model(self):
         backbone = AutoModelForCausalLM.from_pretrained(
             self.model_config.model_name_or_path,
             config=self.auto_config,
             trust_remote_code=True,
-            quantization_config=quantization_config,
-            torch_dtype=torch_dtype,
-            device_map=device_map
+            **self.extra_config
         )
         return backbone
 

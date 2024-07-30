@@ -8,51 +8,47 @@ class ChatGLModel(BaseModels):
     def __init__(self, task_name):
         super().__init__(task_name)
 
-    @property
-    def get_layer_name(self):
-        # use for model.get_submodule
-        return "transformer.encoder.layers"
-
 
 @registry.register_model("baichuan")
-class ChatGLModel(BaseModels):
+class BaiChuanModel(BaseModels):
     def __init__(self, task_name):
         super().__init__(task_name)
-
-    @property
-    def get_layer_name(self):
-        # use for model.get_submodule
-        return "transformer.encoder.layers"
 
 
 @registry.register_model("llama2-chat")
-class LlaMa2Model(BaseModels):
-    def __init__(self, task_name):
-        super().__init__(task_name)
-
-    @property
-    def get_layer_name(self):
-        # use for model.get_submodule
-        return "transformer.encoder.layers"
-
-
 @registry.register_model("tinyllama")
 @registry.register_model("llama2-base")
 class LlaMa2Model(BaseModels):
     def __init__(self, task_name):
         super().__init__(task_name)
 
-    # @property
-    # def get_layer_name(self):
-    #     # use for model.get_submodule
-    #     return "transformer.encoder.layers"
-
 
 @registry.register_model("qwen")
-class LlaMa2Model(BaseModels):
+class QwenModel(BaseModels):
     def __init__(self, task_name):
         super().__init__(task_name)
 
     @property
     def target_modules(self):
         return ["c_attn", "c_proj", "w1", "w2"]
+
+
+@registry.register_model("llama2-rm")
+class LlaMa2Model(BaseModels):
+    def __init__(self, task_name):
+        super().__init__(task_name)
+
+    def build_model(self):
+        from utils.general import is_petuning
+        from trl import AutoModelForCausalLMWithValueHead
+
+        backbone = self._add_base_model()
+
+        backbone = self._add_quantize_model(backbone)
+
+        if is_petuning(self.model_config.tuning_type):
+            backbone = self._add_delta_model(backbone)
+
+        backbone = AutoModelForCausalLMWithValueHead.from_pretrained(backbone)
+
+        return backbone

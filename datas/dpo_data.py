@@ -11,6 +11,7 @@ from tools.prompts import all_prompts
 IGNORE_INDEX = -100
 
 
+@registry.register_data("rm")
 @registry.register_data("dpo")
 class DPODataManger(FedBaseDataManger):
     def __init__(self):
@@ -74,9 +75,10 @@ class DPODataManger(FedBaseDataManger):
 
             inputs_ids = source_chosen_ids + source_rejected_ids
             labels = source_chosen_labels + source_rejected_labels
-            instances.append({"idx": f"{mode}-{idx}",
-                              "input_ids": inputs_ids, "labels": labels
-                              })
+            instances.append({
+                "idx": f"{mode}-{idx}",
+                "input_ids": inputs_ids, "labels": labels})
+
         return instances
 
     def coll_fn(self, model):
@@ -88,7 +90,8 @@ class DPODataManger(FedBaseDataManger):
             tokenizer: transformers.PreTrainedTokenizer
 
             def __call__(self, instances):
-                chosen_ids, chosen_labels, rejected_ids, rejected_labels = [], [], [], []
+                input_ids, chosen_ids, chosen_labels, rejected_ids, rejected_labels = [], [], [], [], []
+
                 for instance in instances:
                     length = len(instance["input_ids"]) // 2
                     chosen_id = instance["input_ids"][:length]
@@ -96,11 +99,14 @@ class DPODataManger(FedBaseDataManger):
                     chosen_label = instance["labels"][:length]
                     rejected_label = instance["labels"][length:]
 
+                    input_ids.append(torch.LongTensor(instance["input_ids"]))
                     chosen_ids.append(torch.LongTensor(chosen_id))
                     chosen_labels.append(torch.LongTensor(chosen_label))
                     rejected_ids.append(torch.LongTensor(rejected_id))
                     rejected_labels.append(torch.LongTensor(rejected_label))
 
+                input_ids = custom_pad_sequence(input_ids, padding_value=self.tokenizer.pad_token_id,
+                                                left_padding=True)
                 chosen_input_ids = custom_pad_sequence(chosen_ids, padding_value=self.tokenizer.pad_token_id,
                                                        left_padding=True)
                 chosen_labels = custom_pad_sequence(chosen_labels, padding_value=self.tokenizer.pad_token_id,
@@ -117,6 +123,7 @@ class DPODataManger(FedBaseDataManger):
                     rejected_input_ids=rejected_input_ids,
                     rejected_labels=rejected_labels,
                     rejected_attention_mask=rejected_input_ids.ne(self.tokenizer.pad_token_id),
+                    input_ids=input_ids
                 )
 
         data_collator = DataCollatorForPairwiseDataset(tokenizer=self.tokenizer)
