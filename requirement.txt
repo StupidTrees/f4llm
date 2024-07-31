@@ -18,3 +18,4 @@ grpcio-tools
 trl
 tabulate
 bitsandbytes
+datasets

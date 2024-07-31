@@ -1,0 +1,12 @@
+# .coveragerc to control coverage.py
+[run]
+# concurrency = multiprocessing
+source =
+    commus
+    configs
+    models
+    utils
+    datas
+omit =
+    commus/gRPC_communication_manager_pb2.py
+    commus/gRPC_communication_manager_pb2_grpc.py

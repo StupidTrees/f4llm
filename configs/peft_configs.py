@@ -1,6 +1,13 @@
-
-
 def get_delta_key(delta_type):
+    """
+    Get the delta key for the given delta type
+
+    Args:
+        delta_type (str): The delta type
+
+    Returns:
+        str: The delta key
+    """
     delta_keys = {
         "fine-tuning": "",
         "prefix": "num_virtual_tokens",

@@ -15,6 +15,30 @@ from utils.general import setup_seed, cosine_learning_rate, LoadBalanceSampling
 
 
 class BaseTrainer(BaseEngine):
+    """
+    Base Federated Trainer for all trainers.
+    The trainer is run on the server or client side. It is
+    responsible for building the dataset, model, metric, and communicators, and running the training process.
+
+
+    Attributes:
+        M (configs.ModelArguments): Model configuration
+        D (configs.DataArguments): Data configuration
+        T (configs.TrainingArguments): Training configuration
+        F (configs.FLArguments): Federated Learning configuration
+
+        is_fl (bool): Whether to use federated learning
+        role (str): Role of the trainer, either "server" or "client"
+        client_num (int): Number of clients
+        param_list (list): Used for global update
+        loss_list (list): Used for loss-aware aggregate
+
+        round (int): Current training round
+        phase (str): Phase of the training process
+        logger (Logger): Logger object
+        debug (bool): Whether to enable debug mode
+    """
+
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -75,6 +99,9 @@ class BaseTrainer(BaseEngine):
         self._build_communicators()
 
     def run(self):
+        """
+        Run the trainer according to the phase
+        """
         self.logger.critical(f" {self.role.upper()} {self.phase.upper()} START")
         if self.is_fl:
             self.server_run() if self.role == "server" else self.client_run()
@@ -249,7 +276,7 @@ class BaseTrainer(BaseEngine):
     def client_process(self, client_ids, model_parameters):
         param_list, loss_list = {}, {}
         for idx in client_ids:
-            train_loss = self.client_train(
+            train_loss = self.local_train(
                 idx=idx,
                 model_parameters=model_parameters
             )

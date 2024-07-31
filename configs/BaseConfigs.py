@@ -14,6 +14,20 @@ os.environ["WANDB_DISABLED"] = "true"
 
 
 class Config(ABC):
+    """
+    Base class for configurations.
+
+    Attributes:
+        model_config: ModelArguments
+        data_config: DataTrainingArguments
+        training_config: TrainingArguments
+        federated_config: FederatedTrainingArguments
+        M: abbreviation for model_config
+        D: abbreviation for data_config
+        T: abbreviation for training_config
+        F: abbreviation for federated_config
+
+    """
     def __init__(self, model_args, data_args, training_args, federated_args):
         self.model_config = model_args
         self.data_config = data_args
@@ -27,6 +41,9 @@ class Config(ABC):
     #     return args_dict
 
     def check_config(self):
+        """
+        Check the configurations
+        """
         self.config_check_federated()
         self.config_check_model()
         self.config_check_tuning()
@@ -117,6 +134,15 @@ class Config(ABC):
 
 
 def debug_mode(config):
+    """
+    Switch the configurations to debug mode
+
+    Args:
+        config: Config object
+
+    Returns:
+        Config object, updated with debug mode
+    """
     if not config.D.debug_mode:
         return config
 
@@ -176,6 +202,13 @@ def build_metric_line(config, times):
 
 
 def amend_config(model_args, data_args, training_args, federated_args):
+    """
+    Merge the parsed arguments into one config object and amend the configurations
+    The config object is registered in the registry for global access
+
+    Returns:
+        config: Config object
+    """
     config = Config(model_args, data_args, training_args, federated_args)
 
     # load customer config
@@ -332,6 +365,15 @@ def amend_config(model_args, data_args, training_args, federated_args):
 
 
 def build_config():
+    """
+    Build configurations required for experiments
+    The arguments are automatically parsed from command line and will be merged into one config object
+    The config object is registered in the registry for global access
+
+    Returns:
+        config: Config object
+
+    """
     # read parameters
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainArguments, FederatedTrainingArguments))
     model_args, data_args, training_args, federated_args = parser.parse_args_into_dataclasses()

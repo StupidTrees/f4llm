@@ -8,20 +8,56 @@ from utils.general import custom_pad_sequence
 from datas.base_data import FedBaseDataManger, FedBaseDataset
 from tools.prompts import all_prompts
 
+"""
+
+This module contains the data manager classes for the Direct Preference Optimization (DPO) datasets. The classes 
+are registered in the data registry for easy access and configuration. Each data class inherits from the 
+FedBaseDataManger class, which provides common methods and properties for the data classes. 
+
+Direct Preference Optimization (DPO) is a method used to optimize models by directly incorporating user preferences 
+into the training process, the dataset often includes a prompt, a chosen response, and a rejected response. 
+
+"""
+
 IGNORE_INDEX = -100
 
 
 @registry.register_data("rm")
 @registry.register_data("dpo")
 class DPODataManger(FedBaseDataManger):
+    """
+    Data manager for Direct Preference Optimization (DPO) datasets
+    """
+
     def __init__(self):
         super().__init__()
 
     def build_inputs(self, prompt_text, text):
+        """
+        Build inputs for the model
+
+        Args:
+            prompt_text: str, the prompt text
+            text: str, the text to be processed
+
+        Returns:
+            str, the inputs text
+        """
         inputs_text = prompt_text.format(text)
         return inputs_text
 
     def process_examples(self, examples, mode="train", verbose=True):
+        """
+        Process the examples for DPO, including the prompt, chosen response, and rejected response The inputs are
+        formed by concatenating the prompt and the chosen & rejected responses, the labels are also formed in this
+        way but with the prompt masked out (with IGNORE_INDEX)
+
+        Args:
+            examples: list, the list of examples
+            mode: str, the mode of the examples
+            verbose: bool, whether to print the verbose
+
+        """
         instances = []
         columns = list(examples[0].keys())
         template = all_prompts[self.data_config.template_name]
@@ -42,7 +78,7 @@ class DPODataManger(FedBaseDataManger):
                 assert 'prompt' in columns and 'rejected' in columns and 'chosen' in columns
                 prompt, chosen, rejected = example['prompt'], example['chosen'], example['rejected']
 
-            source = template.format_map({'Instruction': prompt})
+            source = template['prompt_no_input'].format_map({'instruction': prompt})
             source_ids = self.tokenizer.encode(text=source, add_special_tokens=False)
             chosen_ids = self.tokenizer.encode(text=chosen, add_special_tokens=False)
             rejected_ids = self.tokenizer.encode(text=rejected, add_special_tokens=False)
@@ -82,7 +118,24 @@ class DPODataManger(FedBaseDataManger):
         return instances
 
     def coll_fn(self, model):
-        # pairwise data collator
+        """
+        Create pairwise data collator for DPO tasks
+        The collator will separate the chosen and rejected responses from the inputs and labels for DPO
+
+        Args:
+            model: the model to be used
+
+        Returns:
+            Callable, the collator function
+
+        Examples:
+            >>> data_collator = data_manager.coll_fn(model)
+            >>> dataloader = DataLoader(dataset, collate_fn=data_collator)
+            >>> for batch in dataloader:
+            >>>   print(batch) # {'chosen_input_ids': ..., 'chosen_labels': ..., 'chosen_attention_mask': ...}
+            >>>   break
+
+        """
         @dataclass
         class DataCollatorForPairwiseDataset(object):
             """Collate examples for pairwise dataset."""
@@ -133,6 +186,9 @@ class DPODataManger(FedBaseDataManger):
 
 @registry.register_data("ultrafeedback_binarized")
 class UFBDataManger(FedBaseDataManger):
+    """
+    Data manager for Ultra-Feedback task with binarized labels
+    """
     def __init__(self):
         super().__init__()
 
