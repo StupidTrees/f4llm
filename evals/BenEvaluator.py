@@ -6,11 +6,9 @@ import pandas as pd
 from glob import glob
 from tabulate import tabulate
 
-from peft import load_peft_weights
-
 from utils.register import registry
 from evals.BaseEvaluator import BaseEvaluator
-from utils.general import setup_seed, read_json, is_best, run_process
+from utils.general import setup_seed, read_json, run_process
 
 
 task_group = {
@@ -18,7 +16,6 @@ task_group = {
     "alpacare": "mmlu_clinical_knowledge,mmlu_anatomy,mmlu_college_medicine,"
                 "mmlu_college_biology,mmlu_nutrition,mmlu_virology,"
                 "mmlu_medical_genetics,mmlu_professional_medicine",
-
 }
 
 task_mertic_mapping = {

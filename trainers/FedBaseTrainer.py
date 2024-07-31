@@ -139,6 +139,7 @@ class BaseTrainer(BaseEngine):
             self.server_update(params_list, loss_list)
 
     def server_update(self, param_list, loss_list):
+        # TODO 拆分功能：logging(可视化)/eval/aggregate
         assert len(param_list) <= self.F.client_num_per_round
 
         self.round += 1
