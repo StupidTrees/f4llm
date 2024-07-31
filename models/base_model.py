@@ -5,7 +5,6 @@ from peft import (TaskType, get_peft_model, prepare_model_for_kbit_training,
                   LoraConfig, PrefixTuningConfig)
 from transformers import AutoConfig, BitsAndBytesConfig, AutoModelForCausalLM
 
-from models.miscs import build_selector, build_emulator, get_layer_module_name
 from utils.general import get_parameter_number
 from utils.general import is_petuning
 from utils.register import registry

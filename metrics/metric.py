@@ -49,9 +49,12 @@ class MetricForDPOPairwise(BaseMetric):
         super().__init__(tokenizer, is_decreased_valid_metric, save_outputs)
 
     def calculate_metric(self, eval_preds):
-        # save output for test openai
-        predictions = eval_preds.predictions
-        preds = np.argmax(predictions, axis=1).reshape(-1)
+        try:
+            predictions = eval_preds.predictions
+            preds = np.argmax(predictions, axis=1).reshape(-1)
+        except:
+            preds = eval_preds["preds"]
+
         labels = np.zeros(preds.shape)
         inputs = self.decoded(eval_preds.inputs) if self.save_outputs else None
 

@@ -88,7 +88,6 @@ class FedBaseDataManger(ABC):
 
         self.ignore_index = self.data_config.ignore_index
         self.model_max_length = self.data_config.model_max_length
-        # self.max_tgt_len = self.training_config.generation_max_length
 
         self._load_attributes()
         self._build_tokenizer()

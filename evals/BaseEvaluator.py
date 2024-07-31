@@ -84,7 +84,7 @@ class BaseEvaluator(BaseEngine):
             registry.register('checkpoint_opt_file', checkpoint_opt_file)
 
             if self.T.eval_reuse and os.path.exists(checkpoint_opt_file):
-                eval_preds = pickle_read(checkpoint_opt_file)["eval_preds"]
+                eval_preds = pickle_read(checkpoint_opt_file)
                 valid_metric = self.metric.calculate_metric(eval_preds)["result"]
             else:
                 valid_metric = self.eval_fun(
@@ -107,7 +107,7 @@ class BaseEvaluator(BaseEngine):
         if not single_file and not self.T.test_openai:
             metric_path = os.path.join(self.T.checkpoint_file, "metric.csv")
             metrics_df = pd.DataFrame.from_dict(ckpt_metric, orient='index')
-            metrics_df["mean"] = metrics_df.mean(axis=1).round(1)
+            metrics_df["mean"] = metrics_df.mean(axis=1).round(3)
             sorted_metrics_df = metrics_df.sort_values(by='mean', ascending=False)
             sorted_metrics_df.reset_index(inplace=True)
             sorted_metrics_df.columns = ["round"] + list(sorted_metrics_df.columns[1:])

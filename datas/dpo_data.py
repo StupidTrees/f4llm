@@ -10,9 +10,9 @@ from tools.prompts import all_prompts
 
 """
 
-This module contains the data manager classes for the Direct Preference Optimization (DPO) datasets. The classes 
-are registered in the data registry for easy access and configuration. Each data class inherits from the 
-FedBaseDataManger class, which provides common methods and properties for the data classes. 
+This module contains the data manager classes for the Direct Preference Optimization (DPO) or Rewarding Model 
+datasets. The classes are registered in the data registry for easy access and configuration. Each data class inherits 
+from the FedBaseDataManger class, which provides common methods and properties for the data classes. 
 
 Direct Preference Optimization (DPO) is a method used to optimize models by directly incorporating user preferences 
 into the training process, the dataset often includes a prompt, a chosen response, and a rejected response. 
@@ -78,7 +78,7 @@ class DPODataManger(FedBaseDataManger):
                 assert 'prompt' in columns and 'rejected' in columns and 'chosen' in columns
                 prompt, chosen, rejected = example['prompt'], example['chosen'], example['rejected']
 
-            source = template['prompt_no_input'].format_map({'instruction': prompt})
+            source = template.format_map({'Instruction': prompt})
             source_ids = self.tokenizer.encode(text=source, add_special_tokens=False)
             chosen_ids = self.tokenizer.encode(text=chosen, add_special_tokens=False)
             rejected_ids = self.tokenizer.encode(text=rejected, add_special_tokens=False)
@@ -182,36 +182,3 @@ class DPODataManger(FedBaseDataManger):
         data_collator = DataCollatorForPairwiseDataset(tokenizer=self.tokenizer)
 
         return data_collator
-
-
-@registry.register_data("ultrafeedback_binarized")
-class UFBDataManger(FedBaseDataManger):
-    """
-    Data manager for Ultra-Feedback task with binarized labels
-    """
-    def __init__(self):
-        super().__init__()
-
-    def build_inputs(self, prompt_text, text):
-        inputs_text = prompt_text.format(text)
-        return inputs_text
-
-    def process_examples(self, examples, mode="train", verbose=True):
-        instances = []
-        for idx, example in enumerate(examples):
-            instances.append(
-                {"idx": f"{mode}-{idx}", "example": example}
-            )
-        return instances
-
-    def build_dataset(self, features):
-        data = {"prompt": [], "chosen": [], "rejected": []}
-        for feature in features:
-            example = feature["example"]
-            for key in example:
-                data[key].append(example[key])
-        dataset = Dataset.from_dict(data)
-        return dataset
-
-    def coll_fn(self, model):
-        return None
