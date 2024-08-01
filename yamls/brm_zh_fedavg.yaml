@@ -10,6 +10,7 @@ federated_config:
   clients_num: 20
   rounds: 4
   sample: 0.1
+  client_sample_type: coverage
 
   log_valid_len:  # also effects in cen
   save_valid_len: 2
@@ -18,7 +19,7 @@ federated_config:
   log_test_len:
 
   pson: false
-
+  weight_type: loss
   server_ip: 127.0.0.1
   server_port: 15001
 

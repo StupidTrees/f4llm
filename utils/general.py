@@ -9,16 +9,14 @@ import shutil
 import importlib
 import multiprocessing
 from glob import glob
+from collections import Counter
 
 import torch
-import numpy as np
 import psutil
-from peft import get_peft_model_state_dict
-
-from trainers.LocBaseSFT import LocalSFTTrainer
-from trainers.LocBaseRM import LocalRMTrainer
-from utils.constants import petuning_type
+import numpy as np
 from utils.register import registry
+from utils.constants import petuning_type
+from peft import get_peft_model_state_dict
 
 
 """
@@ -212,6 +210,53 @@ def get_memory_usage():
     py = psutil.Process(pid)
     memory_use = py.memory_info()[0] / 2.0 ** 30
     return memory_use
+
+
+def ClientSampling(client_list, num_per_round, rounds, sample_type="random"):
+    samples = []
+
+    if sample_type == "random":
+        for i in range(rounds):
+            samples.append(random.sample(client_list, num_per_round))
+
+    elif sample_type == "coverage":
+        N = len(client_list)
+        if rounds * num_per_round == N:
+            random.shuffle(client_list)
+            return [client_list[i * num_per_round:(i + 1) * num_per_round] for i in range(rounds)]
+        elif rounds * num_per_round < N:
+            samples = []
+            used_elements = Counter()
+            for i in range(rounds):
+                if i == 0:
+                    sampled = random.sample(client_list, num_per_round)
+                else:
+                    available = [x for x in client_list if used_elements[x] < min(used_elements.values())]
+                    sampled = random.sample(available, num_per_round)
+                samples.append(sampled)
+                used_elements.update(sampled)
+            return samples
+        else:
+            full_sets, remaining_samples = divmod(N, num_per_round)
+            samples = []
+            random.shuffle(client_list)
+
+            for i in range(full_sets):
+                samples.append(client_list[i * num_per_round:(i + 1) * num_per_round])
+
+            used_elements = Counter()
+            for sample in samples:
+                used_elements.update(sample)
+
+            for _ in range(rounds - full_sets):
+                available = [x for x in client_list if used_elements[x] == min(used_elements.values())]
+                sampled = random.sample(available, num_per_round)
+                samples.append(sampled)
+                used_elements.update(sampled)
+    else:
+        raise ValueError(f"client sampling supports [random, coverage], but find {sample_type}")
+
+    return samples
 
 
 def LoadBalanceSampling(target, split_size):

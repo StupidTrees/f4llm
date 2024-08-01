@@ -31,6 +31,10 @@ class FederatedTrainingArguments:
     sample: float = field(
         default=1, metadata={"help": "The participant ratio in each training round"}
     )
+    client_sample_type: str = field(
+        default="random",
+        metadata={"help": "How to sample client in each round (random or coverage)."},
+    )
     role: str = field(
         default="server",
         metadata={"help": "Important! The role of running scripts"}

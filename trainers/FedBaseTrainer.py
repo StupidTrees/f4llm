@@ -11,7 +11,7 @@ from contribs.centralized.miscs import CenEndEvalStepCallback
 from utils.register import registry
 from trainers.BaseEngine import BaseEngine
 from utils.general import metric_save, model_save
-from utils.general import setup_seed, cosine_learning_rate, LoadBalanceSampling
+from utils.general import setup_seed, cosine_learning_rate, LoadBalanceSampling, ClientSampling
 
 
 class BaseTrainer(BaseEngine):
@@ -19,13 +19,9 @@ class BaseTrainer(BaseEngine):
         super().__init__(*args)
 
     def _build_selections(self):
-        # TODO 添加激励未参加用户的采样方式
-        self.selections = []
-        for i in range(self.F.rounds):
-            self.selections.append(random.sample(
-                range(self.F.client_num_in_total),
-                self.F.client_num_per_round
-            ))
+        self.selections = ClientSampling(
+            range(self.F.client_num_in_total), self.F.client_num_per_round,
+            self.F.rounds, self.F.client_sample_type)
 
     def _build_communicators(self):
         if self.is_fl:
@@ -142,7 +138,6 @@ class BaseTrainer(BaseEngine):
             self.server_update(params_list, loss_list)
 
     def server_update(self, param_list, loss_list):
-        # TODO 拆分功能：logging(可视化)/eval/aggregate
         assert len(param_list) <= self.F.client_num_per_round
 
         self.round += 1
@@ -152,19 +147,10 @@ class BaseTrainer(BaseEngine):
         if self.F.save_valid_len and self.round % self.F.save_valid_len == 0:
             should_save = True
 
-        this_round_loss = sum(loss_list)/len(loss_list)
-        self.logger.warning(
-            f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(param_list)}_"
-            f"Evals={should_eval}_Save={should_save}_Loss={this_round_loss:.3f}"
-        )
+        self.server_logging(loss_list)
 
         # Global Aggregation
-        if self.F.weight_type == "num":
-            weights = [self.data.train_examples_num_dict[client_id] for client_id in self.client_ids]
-        else:
-            weights = None
-
-        serialized_parameters = self.server_aggregator(param_list, weights)
+        serialized_parameters = self.server_aggregator(param_list, loss_list)
         self.deserialize_model(serialized_parameters)
 
         if should_save and self.phase == "train" and not self.debug:
@@ -185,16 +171,20 @@ class BaseTrainer(BaseEngine):
             eval_opts = ["python"] + eval_opts
             subprocess.Popen(eval_opts)
 
-    def server_aggregator(self, serialized_params_list, weights=None):
+    def server_logging(self, loss_list):
+        # TODO @yukun/guanzhong push training info(this_round_loss and loss_list以及方差等)
+        this_round_loss = sum(loss_list) / len(loss_list)
+        self.logger.warning(
+            f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(loss_list)}_"
+            f"Loss={this_round_loss:.3f}"
+        )
+        # registry.get('metric_line')[0:-1]可以作为wandb小实验的名字 他大概长这样：
+        # 20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16
+
+    def server_aggregator(self, serialized_params_list, loss_list):
         """fl algorithm, default fedavg"""
+        weights = self.get_agg_weight(loss_list)
         serialized_parameters = self.serialize_model_parameters()
-
-        if weights is None:
-            weights = [1.0 for _ in range(len(serialized_params_list))]
-
-        total = sum(weights)
-        weights = [weight/total for weight in weights]
-        self.logger.info(f"This round clients' weights: {[round(weight, 3) for weight in weights]}")
 
         for key in serialized_parameters.keys():
             serialized_parameters[key] = sum(
@@ -299,7 +289,7 @@ class BaseTrainer(BaseEngine):
 
         train_loss = round(train_result.training_loss, 3)
         self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
-                         f"{self.T.learning_rate*10000:.2f}e-4_Loss={train_loss}")
+                         f"{self.T.learning_rate * 10000:.2f}e-4_Loss={train_loss}")
         return train_loss
 
     def on_client_end(self):
@@ -337,3 +327,16 @@ class BaseTrainer(BaseEngine):
         )
         train_op.train()
 
+    def get_agg_weight(self, loss_list, epsilon=1e-8):
+        if self.F.weight_type == "num":
+            weights = [self.data.train_examples_num_dict[client_id] for client_id in self.client_ids]
+        elif self.F.weight_type == "loss":
+            adjusted_losses = [max(loss, epsilon) for loss in loss_list]
+            inverse_weights = [1 / loss for loss in adjusted_losses]
+            weights = inverse_weights
+        else:
+            weights = [1.0 for _ in range(len(loss_list))]
+        total = sum(weights)
+        normalized_weights = [weight / total for weight in weights]
+        self.logger.info(f"This round clients' weights: {[round(weight, 3) for weight in normalized_weights]}")
+        return normalized_weights
