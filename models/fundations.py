@@ -21,6 +21,9 @@ class BaiChuanModel(BaseModels):
     def __init__(self, task_name):
         super().__init__(task_name)
 
+    @property
+    def target_modules(self):
+        return ["W_pack"]
 
 @registry.register_model("llama2-chat")
 @registry.register_model("tinyllama")
