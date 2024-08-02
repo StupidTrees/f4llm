@@ -2,7 +2,7 @@ data_config:
   data_name: dpo
   model_max_length: 1024
   debug_mode: true
-  overwrite_cache: false
+  overwrite_cache: true
   template_name: llama_chat_default
 
 federated_config:
@@ -19,7 +19,6 @@ federated_config:
 
   pson: false
 
-  local_trainer_name: fedavg_dpo
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -44,7 +43,7 @@ training_config:
 #  weight_decay: 0.
 #  warmup_ratio: 0.03
   lr_scheduler_type: cosine # linear, cosine
-
+  local_trainer_name: fedavg_dpo
   eval_name: pairwise
   metric_name: pairwise
   is_decreased_valid_metric: false # ppl:true

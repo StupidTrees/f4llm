@@ -42,5 +42,5 @@ deepspeed --include localhost:${device} --master_port ${port} main.py \
 --task_name ${task_name} \
 --fl_algorithm ${algorithm} \
 --config_path yamls/${task_name}_${algorithm}.yaml \
---save_outputs True
-
+--save_outputs True \
+--role client
