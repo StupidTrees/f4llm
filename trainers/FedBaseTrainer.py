@@ -4,6 +4,7 @@ import time
 import random
 import subprocess
 
+from visualization.visualizer import Visualizer
 from commus.message import Message
 from commus.communicator import gRPCCommunicationManager
 from contribs.centralized.miscs import CenEndEvalStepCallback
@@ -17,6 +18,22 @@ from utils.general import setup_seed, cosine_learning_rate, LoadBalanceSampling,
 class BaseTrainer(BaseEngine):
     def __init__(self, *args):
         super().__init__(*args)
+
+    def _build_visualizer(self):
+        self.visualizer = Visualizer(
+            project=self.T.visualization.project,
+            group=self.T.visualization.group,
+            name=registry.get('metric_line')[0:-1],
+            key=self.T.visualization.key,
+            config={
+                "seed": self.T.seed,
+                "lr": self.T.learning_rate,
+                "fl_algorithm": self.F.fl_algorithm,
+                "clients_num": self.F.client_num_in_total,
+                "total_round": self.F.rounds
+            }
+        )
+        self.logger.info(f"build visualizer: {self.T.visualization.project}({registry.get('metric_line')[0:-1]})")
 
     def _build_selections(self):
         self.selections = ClientSampling(
@@ -33,8 +50,9 @@ class BaseTrainer(BaseEngine):
                     port=self.F.server_port,
                     max_connection_num=self.F.num_sub
                 )
+                self.logger.debug(f"server finish building communicator")
             else:
-                time.sleep(5)  # wait for server
+                time.sleep(random.randint(2, 10))  # wait for server
                 self.logger.debug(f"subserver {self.F.client_name} build communicator")
                 self.comm_manager = gRPCCommunicationManager(
                     ip=self.F.client_ip,
@@ -86,14 +104,18 @@ class BaseTrainer(BaseEngine):
             msg = self.comm_manager.receive()
             if msg.message_type == 100:
                 client_num += 1
+                self.logger.info(f"Subserver {msg.content['client_ip']}:{msg.content['client_port']} join in.")
                 self.comm_manager.add_communicator(
                     communicator_id=msg.sender,
                     communicator_address=f"{msg.content['client_ip']}:{msg.content['client_port']}")
                 self.logger.info(f"Subserver {msg.sender} joined in.")
                 self.logger.info(list(self.comm_manager.communicators.keys()))
-        self.logger.debug("all subserver connect")
+        self.logger.debug(f"all subserver ({len(self.comm_manager.communicators)}) connect")
 
     def server_run(self):
+        # build visualizer
+        self._build_visualizer()
+
         self.server_join()
         self.server_valid()
         self.server_process()
@@ -169,7 +191,7 @@ class BaseTrainer(BaseEngine):
                               "--not_overwrite_args", "eval_name",
                               "--checkpoint_file", f"{self.T.checkpoint_dir}"])
             eval_opts = ["python"] + eval_opts
-            subprocess.Popen(eval_opts)
+            self.p = subprocess.Popen(eval_opts)
 
     def server_logging(self, loss_list):
         # TODO @yukun/guanzhong push training info(this_round_loss and loss_list以及方差等)
@@ -177,6 +199,13 @@ class BaseTrainer(BaseEngine):
         self.logger.warning(
             f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(loss_list)}_"
             f"Loss={this_round_loss:.3f}"
+        )
+        self.visualizer.log(
+            data={
+                "train_loss": this_round_loss,
+                # "loss_list": loss_list,
+            },
+            step=self.round
         )
         # registry.get('metric_line')[0:-1]可以作为wandb小实验的名字 他大概长这样：
         # 20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16
@@ -210,7 +239,12 @@ class BaseTrainer(BaseEngine):
             )
         )
 
+        if hasattr(self, 'p'):
+            while self.p.returncode != 0:
+                continue
+
     def client_join(self):
+        self.logger.debug(f"Subserver {self.F.client_ip}:{self.F.client_port} join in federated learning")
         self.comm_manager.send(
             Message(
                 message_type=100,
