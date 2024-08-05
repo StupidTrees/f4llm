@@ -4,7 +4,7 @@ import time
 import random
 import subprocess
 
-from visualization.visualizer import Visualizer
+from visualization.visualizer import Visualizer, VisCallback
 from commus.message import Message
 from commus.communicator import gRPCCommunicationManager
 from contribs.centralized.miscs import CenEndEvalStepCallback
@@ -22,8 +22,11 @@ class BaseTrainer(BaseEngine):
     def _build_visualizer(self):
         self.visualizer = Visualizer(
             project=self.T.visualization.project,
-            group=self.T.visualization.group,
-            name=registry.get('metric_line')[0:-1],
+            trial_name=self.T.visualization.trial,
+            role=self.role,
+            client_name=self.F.client_name,
+            phase=self.phase,
+            # name=registry.get('metric_line')[0:-1],
             key=self.T.visualization.key,
             config={
                 "seed": self.T.seed,
@@ -89,6 +92,8 @@ class BaseTrainer(BaseEngine):
         self._build_communicators()
 
     def run(self):
+        # build visualizer
+        self._build_visualizer()
         """
         Run the trainer according to the phase
         """
@@ -108,14 +113,11 @@ class BaseTrainer(BaseEngine):
                 self.comm_manager.add_communicator(
                     communicator_id=msg.sender,
                     communicator_address=f"{msg.content['client_ip']}:{msg.content['client_port']}")
-                self.logger.info(f"Subserver {msg.sender} joined in.")
+                self.logger.info(f"Subserver {msg.sender} joined in. {client_num}-{self.F.num_sub}")
                 self.logger.info(list(self.comm_manager.communicators.keys()))
         self.logger.debug(f"all subserver ({len(self.comm_manager.communicators)}) connect")
 
     def server_run(self):
-        # build visualizer
-        self._build_visualizer()
-
         self.server_join()
         self.server_valid()
         self.server_process()
@@ -201,11 +203,11 @@ class BaseTrainer(BaseEngine):
             f"Loss={this_round_loss:.3f}"
         )
         self.visualizer.log(
+            global_round=self.round,
             data={
                 "train_loss": this_round_loss,
                 # "loss_list": loss_list,
-            },
-            step=self.round
+            }
         )
         # registry.get('metric_line')[0:-1]可以作为wandb小实验的名字 他大概长这样：
         # 20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16
@@ -308,6 +310,7 @@ class BaseTrainer(BaseEngine):
             self.round, self.F.rounds, self.eval_args.learning_rate, 1e-6)
 
         # Initialize local Trainer
+        vis_cb = VisCallback(self.visualizer)
         train_op = registry.get_loctrainer(self.T.local_trainer_name)(
             model=self.model,
             args=self.T,
@@ -315,7 +318,7 @@ class BaseTrainer(BaseEngine):
             tokenizer=self.data.tokenizer,
             data_collator=self.data.coll_fn(self.model),
             compute_metrics=self.metric.calculate_metric,
-            # callbacks=None
+            callbacks=[vis_cb]
             # optimizers
         )
         train_result = train_op.train()

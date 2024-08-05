@@ -1,5 +1,3 @@
-
-
 import os
 import pandas as pd
 from glob import glob
@@ -57,9 +55,12 @@ class BaseEvaluator(BaseEngine):
         )
         self.visualizer = Visualizer(
             project=self.T.visualization.project,
-            group=self.T.visualization.group,
-            name=registry.get('metric_line')[0:-1],
+            trial_name=self.T.visualization.trial,
+            phase=self.phase,
+            # name=registry.get('metric_line')[0:-1],
             key=self.T.visualization.key,
+            role=self.role,
+            client_name=self.F.client_name,
             config={
                 "seed": self.T.seed,
                 "lr": self.T.learning_rate,
@@ -152,10 +153,12 @@ class BaseEvaluator(BaseEngine):
             # 或者从self.T.checkpoint_file中push
             # 还可以构造 {self.T.times}_20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16.loss
             self.visualizer.log(
+                # global_round=registry.get('round'),
+                # global_round=self.round,
                 data={
                     "test_loss": ckpt_metric[self.T.checkpoint_file.split("/")[-1]][self.metric_name]
                 },
-                step=int(self.T.checkpoint_file.split("/")[-1].split("-")[-1])
+                global_round=int(self.T.checkpoint_file.split("/")[-1].split("-")[-1])
             )
 
         if self.T.test_best and not self.T.test_openai:

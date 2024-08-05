@@ -10,7 +10,7 @@ from utils.general import make_sure_dirs
 from configs.peft_configs import get_delta_key
 from configs import ModelArguments, DataTrainingArguments, TrainArguments, FederatedTrainingArguments
 
-os.environ["WANDB_DISABLED"] = "true"
+# os.environ["WANDB_DISABLED"] = "true"
 
 
 class Config(ABC):
@@ -309,7 +309,7 @@ def amend_config(model_args, data_args, training_args, federated_args):
                                                     f"{phase}_{config.M.model_type}.pth.result.pkl")
     registry.register("checkpoint_opt_file", config.T.checkpoint_opt_file)
     # disable wandb
-    # config.T.report_to = "none"
+    config.T.report_to = []
 
     # evaluation config
     if config.is_fl and not config.F.pson:
