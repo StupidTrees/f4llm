@@ -48,7 +48,7 @@ training_config:
   local_trainer_name: fedprox_dpo
 #  dataloader_num_workers: 0
 
-  eval_name: pairwise
+  eval_name: local
   metric_name: pairwise
   is_decreased_valid_metric: false # ppl:true
 
