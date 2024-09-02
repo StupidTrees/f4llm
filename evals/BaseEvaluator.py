@@ -10,7 +10,7 @@ from trainers.LocBaseSFT import LocalSFTTrainer
 
 from utils.register import registry
 from utils.general import is_best, pickle_read, run_process
-from utils.general import setup_seed
+from utils.general import setup_seed, read_json
 from trainers.BaseEngine import BaseEngine
 
 
@@ -35,7 +35,13 @@ class BaseEvaluator(BaseEngine):
         self.best_glo_params = self.serialize_model_parameters()
 
     def _load_examples(self):
-        raise NotImplementedError
+        if 'json' in self.D.eval_data_path:
+            examples = read_json(self.D.eval_data_path)
+        elif 'pkl' in self.D.eval_data_path:
+            examples = pickle_read(self.D.eval_data_path)
+        else:
+            raise TypeError
+        return examples
 
     def _build_data(self):
         self.logger.info(f"{self.role} building dataset ...")
@@ -43,7 +49,10 @@ class BaseEvaluator(BaseEngine):
         if self.D.eval_data_path is not None:
             # load examples used for open-ai test
             examples = self._load_examples()
-            self.data.process_examples(examples, self.phase)
+            self.logger.debug(f"Custom eval path [{self.D.eval_data_path}] with {len(examples)} examples")
+            self.data.train_dataset_dict[-1] = None
+            self.data.test_dataset_dict[-1] = self.data.process_examples(examples, self.phase)
+            self.data.valid_dataset_dict[-1] = self.data.process_examples(examples, self.phase)
         else:
             self.data.load_data()
 
@@ -96,7 +105,7 @@ class BaseEvaluator(BaseEngine):
                 self.best_glo_params = self.serialize_model_parameters()
                 best_file = file
 
-            ckpt_metric[file] = {self.metric_name: metric_value}
+            ckpt_metric[file] = valid_metric
             self.logger.info(f"Model: {file}, Metric: {metric_value:.3f}, "
                              f"Best Model: {best_file}, "
                              f"Best: {self.global_valid_best_metric:.3f}")
@@ -146,7 +155,7 @@ class BaseEvaluator(BaseEngine):
             # if os.path.isdir(self.T.checkpoint_opt_file):
             #     self.metric_save()
 
-    def build_eval_op(self, *args):
+    def build_eval_op(self, model=None):
         # Initialize Eval Trainer
         raise NotImplementedError
 
@@ -154,8 +163,8 @@ class BaseEvaluator(BaseEngine):
         if checkpoint_file is not None:
             ckt_param = load_peft_weights(checkpoint_file)
             self.deserialize_model(ckt_param)
-        # self.model = self.model.merge_and_unload()
-
+        # merge_model = self.model.merge_and_unload()
+        # eval_op = self.build_eval_op(merge_model)
         eval_op = self.build_eval_op()
         eval_result = eval_op.evaluate(
             eval_dataset,

@@ -13,9 +13,7 @@ from utils.general import setup_seed, read_json, run_process
 
 task_group = {
     "alpaca": "winogrande,ai2_arc,hellaswag,truthfulqa_mc2,mmlu",
-    "alpacare": "mmlu_clinical_knowledge,mmlu_anatomy,mmlu_college_medicine,"
-                "mmlu_college_biology,mmlu_nutrition,mmlu_virology,"
-                "mmlu_medical_genetics,mmlu_professional_medicine",
+    "rewardben": "Chat,Chat Hard,Safety,Reasoning",
 }
 
 task_mertic_mapping = {
@@ -23,7 +21,8 @@ task_mertic_mapping = {
     'truthfulqa_mc2': 'acc,none',
     'mmlu': 'acc,none',
     "hellaswag": "acc_norm,none",
-    "ai2_arc": "acc_norm,none"
+    "ai2_arc": "acc_norm,none",
+    # "":
 }
 
 
@@ -47,7 +46,7 @@ def merge_metric(result_files, tasks, output_path, task_name, logger):
 
         metrics = read_json(result_file)["results"]
         for task in tasks:
-            metric_name = task_mertic_mapping[task]
+            metric_name = getattr(task_mertic_mapping, task, "accuracy")
             metric = round(metrics[task][metric_name]*100, 1)
             mean_metrics[checkpoint_name][task] = metric
             if task not in best_metrics or best_metrics[task] < metric:
