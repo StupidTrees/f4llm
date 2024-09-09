@@ -19,7 +19,7 @@ device=${args[6]}
 checkpoint_dir_or_file=${args[7]}
 
 if [ "$model_type" = "llama2-base" ]; then
-    model_name_or_path=${run_dirs}/pretrain/nlp/Llama-2-7b-hf/
+    model_name_or_path=/data/stupidtree/data/sfl/models/meta-llama/Llama-2-7b-hf/
 elif [ "$model_type" = "tinyllama" ]; then
     model_name_or_path=${run_dirs}/pretrain/nlp/TinyLlama-1.1B-intermediate-step-1195k-token-2.5T/
 elif [ "$model_type" = "qwen" ]; then
