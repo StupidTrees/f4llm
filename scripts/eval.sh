@@ -31,8 +31,11 @@ else
     model_name_or_path=""
 fi
 
-# example: bash ./scripts/eval.sh /userhome f4llm tinyllama fedavg ultrafeedback_binarized 10001 1,2 xxxx
-deepspeed --include localhost:${device} --master_port ${port} main.py \
+lsof -i : ${port} | awk 'NR>1 {print $2}' | xargs kill -9
+#--include localhost:${device}
+#--master_port ${port}
+# example: bash ./scripts/eval.sh /data/stupidtree/project/userhome f4llm llama2-base fedavg alpaca2 10001 1,2 /data/stupidtree/project/userhome/output/f4llm/alpaca2/fedavg/20240827201642_llama2-base_lora
+python main.py \
 --do_eval True \
 --role client \
 --raw_dataset_path /userhome/data/${project_name}/${task_name}_data.pkl \

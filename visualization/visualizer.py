@@ -1,5 +1,4 @@
-import wandb
-from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
+from transformers import TrainerCallback
 
 from utils.register import registry
 from visualization.backends import WandbVisBackend, VisBackend
@@ -48,7 +47,8 @@ class Visualizer(object):
                             global_round=global_round,
                             curr_step=curr_step,
                             curr_epoch=curr_epoch,
-                            total_step=total_step, data=data)
+                            total_step=total_step,
+                            data=data)
 
 
 # def rewrite_logs(d):

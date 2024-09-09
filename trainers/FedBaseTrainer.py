@@ -128,7 +128,7 @@ class BaseTrainer(BaseEngine):
         while self.round < self.F.rounds:
             self.client_ids = self.selections[self.round]
             self.metric_log["train_logs"].append([0.0 for _ in range(self.F.client_num_in_total)])
-            self.logger.critical(f"Round {self.round + 1} start, Selected Clients: {self.client_ids}")
+            self.logger.critical(f"Round {self.round + 1}/{self.F.rounds} start, Selected Clients: {self.client_ids}")
             balance_sampling = LoadBalanceSampling(self.client_ids, self.F.num_sub)
             client_ids = {}
             for i in range(self.F.num_sub):
