@@ -7,13 +7,12 @@ from typing import Dict, Sequence
 import peft
 import torch
 import transformers
-from datasets import Dataset
+from torch.utils.data import Dataset
 from transformers import Trainer, BitsAndBytesConfig
-sys.path.append(os.path.abspath('.'))
-import utils
-from datas.sft_data import preprocess
-from selection.cherry.utils import CherryModelArguments, CherryDataArguments, CherrySFTArguments
+sys.path.append(os.path.abspath('./'))
 from tools.prompts.llama2_prompt import LLAMA_ALPACA_PROMPT_DICT
+from datas.sft_data import preprocess
+from selection.cherry.args import CherryModelArguments, CherryDataArguments, CherrySFTArguments, jload
 
 IGNORE_INDEX = -100
 
@@ -24,7 +23,7 @@ class SupervisedDataset(Dataset):
     def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
         super(SupervisedDataset, self).__init__()
         logging.warning("Loading data...")
-        list_data_dict = utils.jload(data_path)
+        list_data_dict = jload(data_path)
 
         logging.warning("Formatting inputs...")
         prompt_input, prompt_no_input = LLAMA_ALPACA_PROMPT_DICT["prompt_input"], LLAMA_ALPACA_PROMPT_DICT[

@@ -1,3 +1,5 @@
+import io
+import json
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -64,3 +66,17 @@ class CherrySFTArguments(transformers.TrainingArguments):
     )
     use_lora: bool = field(default=False, metadata={"help": "Use LoRA optimizer."})
     quant: int = field(default=32, metadata={"help": "Quantization bits."})
+
+
+def _make_r_io_base(f, mode: str):
+    if not isinstance(f, io.IOBase):
+        f = open(f, mode=mode)
+    return f
+
+
+def jload(f, mode="r"):
+    """Load a .json file into a dictionary."""
+    f = _make_r_io_base(f, mode)
+    jdict = json.load(f)
+    f.close()
+    return jdict

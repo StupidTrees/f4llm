@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 from transformers import HfArgumentParser
 sys.path.append(os.path.abspath('.'))
-from selection.cherry.utils import SiftingByIFDArguments
+from selection.cherry.args import SiftingByIFDArguments
 from tools.prompts.llama2_prompt import LLAMA_ALPACA_PROMPT_DICT
 
 

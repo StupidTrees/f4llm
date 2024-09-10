@@ -9,7 +9,7 @@ from sklearn.manifold import TSNE
 from tqdm import tqdm
 from transformers import HfArgumentParser
 sys.path.append(os.path.abspath('.'))
-from selection.cherry.utils import DataClusteringArguments
+from selection.cherry.args import DataClusteringArguments
 
 
 def do_clustering(args:DataClusteringArguments, high_dim_vectors):

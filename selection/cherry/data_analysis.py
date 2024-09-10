@@ -6,9 +6,10 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from transformers import BitsAndBytesConfig, HfArgumentParser, AutoModelForCausalLM, AutoTokenizer
+
 sys.path.append(os.path.abspath('.'))
 from tools.prompts.llama2_prompt import LLAMA_ALPACA_PROMPT_DICT
-from selection.cherry.utils import DataAnalysisArguments
+from selection.cherry.args import DataAnalysisArguments
 
 log_softmax = nn.LogSoftmax(dim=-1)
 nll_loss = nn.NLLLoss(reduction='none')
@@ -17,7 +18,6 @@ if torch.cuda.is_available():
     device = "cuda"
 else:
     device = "cpu"
-
 
 
 # Used to get the ppl and emb for the whole input
@@ -64,7 +64,7 @@ def get_perplexity_and_embedding_part_text(tokenizer, model, text, target_span, 
     return perplexity.to('cpu'), 0, losses
 
 
-def main(args:DataAnalysisArguments):
+def main(args: DataAnalysisArguments):
     # args = parse_args()
     # print(args)
     bnb_config = None
@@ -80,7 +80,7 @@ def main(args:DataAnalysisArguments):
             bnb_8bit_compute_dtype=torch.bfloat16  # use hf for computing when we need
         )
     model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto", cache_dir='../cache',
-                                             output_hidden_states=True, quantization_config=bnb_config)
+                                                 output_hidden_states=True, quantization_config=bnb_config)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, cache_dir='../cache')
 
     model.eval()
@@ -153,6 +153,8 @@ def main(args:DataAnalysisArguments):
         pass
 
     print('New data len:', len(new_data))
+    if not os.path.exists(os.path.dirname(args.save_path)):
+        os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
     torch.save(new_data, args.save_path)
 
     print('Time Used:', (time.time() - strat_time) / 60, '(min)')
