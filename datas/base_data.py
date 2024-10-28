@@ -93,6 +93,11 @@ class FedBaseDataManger(ABC):
         self._build_tokenizer()
         self._build_registry()
 
+        self.train_dataset_dict = {}
+        self.valid_dataset_dict = {}
+        self.test_dataset_dict = {}
+        self.train_examples_num_dict = {}
+
     def load_data(self):
         """
         Load the dataset and build the federated dataset
@@ -331,6 +336,10 @@ class FedBaseDataManger(ABC):
         if 'lang_map' in self.attribute:
             registry.register("eval_batch", self.training_config.per_device_eval_batch_size)
             registry.register("lang_map", self.attribute["lang_map"])
+
+        if 'subset_map' in self.attribute:
+            # used for reward_benchmark
+            registry.register("subset_map", self.attribute["subset_map"])
 
     def build_dataset(self, features):
         """

@@ -8,29 +8,20 @@ from utils.general import custom_pad_sequence
 from datas.base_data import FedBaseDataManger, FedBaseDataset
 from tools.prompts import all_prompts
 
-"""
-
-This module contains the data manager classes for the Direct Preference Optimization (DPO) or Rewarding Model 
-datasets. The classes are registered in the data registry for easy access and configuration. Each data class inherits 
-from the FedBaseDataManger class, which provides common methods and properties for the data classes. 
-
-Direct Preference Optimization (DPO) is a method used to optimize models by directly incorporating user preferences 
-into the training process, the dataset often includes a prompt, a chosen response, and a rejected response. 
-
-"""
-
 IGNORE_INDEX = -100
 
 
-@registry.register_data("rm")
-@registry.register_data("dpo")
-class DPODataManger(FedBaseDataManger):
+@registry.register_data("rwben")
+class RewardBenDataManger(FedBaseDataManger):
     """
     Data manager for Direct Preference Optimization (DPO) datasets
     """
 
     def __init__(self):
         super().__init__()
+
+        self.phase = registry.get('phase')
+        self._set_map()
 
     def build_inputs(self, prompt_text, text):
         """
@@ -112,11 +103,41 @@ class DPODataManger(FedBaseDataManger):
             inputs_ids = source_chosen_ids + source_rejected_ids
             labels = source_chosen_labels + source_rejected_labels
 
-            instances.append({
+            instance = {
                 "idx": f"{mode}-{idx}",
-                "input_ids": inputs_ids, "labels": labels})
+                "input_ids": inputs_ids, "labels": labels,
+            }
+
+            if self.phase != "train":
+                if "subset" not in example:
+                    raise ValueError
+                set_labels = self.get_set_idx(example)
+                instance["label_ids"] = set_labels
+
+            instances.append(instance)
 
         return instances
+
+    def _set_map(self):
+        self.set2idx = {set_name: i for i, set_name in enumerate(["Chat", "Chat Hard", "Safety", "Reasoning"])}
+        self.idx2set = {i: set_name for set_name, i in self.set2idx.items()}
+        registry.register("set2idx", self.set2idx)
+        registry.register("idx2set", self.idx2set)
+
+    def get_set_idx(self, dp):
+        if dp["subset"] in "alpacaeval-easy, alpacaeval-length, alpacaeval-hard, mt-bench-easy, mt-bench-medium":
+            set_num = "Chat"
+        elif dp["subset"] in "mt-bench-hard, llmbar-natural, llmbar-adver-neighbor, llmbar-adver-GPTInst, " \
+                             "llmbar-adver-GPTOut, llmbar-adver-manual":
+            set_num = "Chat Hard"
+        elif dp["subset"] in "refusals-dangerous, refusals-offensive, xstest-should-refuse, xstest-should-respond, " \
+                             "donotanswer":
+            set_num = "Safety"
+        elif dp["subset"] in "math-prm, hep-cpp, hep-go, hep-java, hep-js, hep-python, hep-rust":
+            set_num = "Reasoning"
+        else:
+            raise ValueError
+        return self.set2idx[set_num]
 
     def coll_fn(self, model):
         """
@@ -137,48 +158,55 @@ class DPODataManger(FedBaseDataManger):
             >>>   break
 
         """
+
         @dataclass
         class DataCollatorForPairwiseDataset(object):
             """Collate examples for pairwise dataset."""
 
             tokenizer: transformers.PreTrainedTokenizer
+            phase = registry.get('phase')
 
             def __call__(self, instances):
                 input_ids, chosen_ids, chosen_labels, rejected_ids, rejected_labels = [], [], [], [], []
-
+                set_ids = []
                 for instance in instances:
                     length = len(instance["input_ids"]) // 2
                     chosen_id = instance["input_ids"][:length]
                     rejected_id = instance["input_ids"][length:]
                     chosen_label = instance["labels"][:length]
                     rejected_label = instance["labels"][length:]
-
                     input_ids.append(torch.LongTensor(instance["input_ids"]))
                     chosen_ids.append(torch.LongTensor(chosen_id))
                     chosen_labels.append(torch.LongTensor(chosen_label))
                     rejected_ids.append(torch.LongTensor(rejected_id))
                     rejected_labels.append(torch.LongTensor(rejected_label))
+                    if self.phase != "train":
+                        set_ids.append(instance["label_ids"])
 
                 input_ids = custom_pad_sequence(input_ids, padding_value=self.tokenizer.pad_token_id,
                                                 left_padding=True)
                 chosen_input_ids = custom_pad_sequence(chosen_ids, padding_value=self.tokenizer.pad_token_id,
                                                        left_padding=True)
-                chosen_labels = custom_pad_sequence(chosen_labels, padding_value=self.tokenizer.pad_token_id,
-                                                    left_padding=True)
                 rejected_input_ids = custom_pad_sequence(rejected_ids, padding_value=self.tokenizer.pad_token_id,
                                                          left_padding=True)
+                chosen_labels = custom_pad_sequence(chosen_labels, padding_value=self.tokenizer.pad_token_id,
+                                                    left_padding=True)
                 rejected_labels = custom_pad_sequence(rejected_labels, padding_value=self.tokenizer.pad_token_id,
                                                       left_padding=True)
-
-                return dict(
+                input_data = dict(
                     chosen_input_ids=chosen_input_ids,
                     chosen_labels=chosen_labels,
                     chosen_attention_mask=chosen_input_ids.ne(self.tokenizer.pad_token_id),
                     rejected_input_ids=rejected_input_ids,
                     rejected_labels=rejected_labels,
                     rejected_attention_mask=rejected_input_ids.ne(self.tokenizer.pad_token_id),
-                    input_ids=input_ids
+                    input_ids=input_ids,
                 )
+                if self.phase != "train":
+                    set_labels = torch.LongTensor(set_ids)
+                    input_data["labels"] = set_labels
+
+                return input_data
 
         data_collator = DataCollatorForPairwiseDataset(tokenizer=self.tokenizer)
 

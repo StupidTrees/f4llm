@@ -3,7 +3,7 @@ from abc import ABC
 import torch
 from peft import (TaskType, get_peft_model, prepare_model_for_kbit_training,
                   LoraConfig, PrefixTuningConfig)
-from transformers import AutoConfig, BitsAndBytesConfig, AutoModelForCausalLM
+from transformers import AutoConfig, BitsAndBytesConfig, AutoModelForCausalLM, AutoModel
 
 from utils.general import get_parameter_number
 from utils.general import is_petuning
@@ -38,16 +38,19 @@ class BaseModels(ABC):
         super().__init__()
 
         config = registry.get("config")
-        self.task_name = task_name
         self.model_config = config.model_config
         self.train_config = config.training_config
+
         self.role = config.F.role
-        self._build_config()
+        self.task_name = task_name
+        self.phase = registry.get('phase')
         self.logger = registry.get("logger")
+
+        self._build_config()
 
     def _build_config(self):
         """
-        Build the AutoConfig object for the model
+        Build the AutoConfig object for the model, quantize if needed
         Returns:
             AutoConfig: AutoConfig object for the model
         """
@@ -56,41 +59,15 @@ class BaseModels(ABC):
             trust_remote_code=True,
         )
 
-        if self.train_config.load_in_8bit or self.train_config.load_in_4bit:
+        if self.phase == 'train' and (self.train_config.load_in_8bit or self.train_config.load_in_4bit):
+        # if (self.train_config.load_in_8bit or self.train_config.load_in_4bit):
             quantization_config = BitsAndBytesConfig(
                 load_in_8bit=self.train_config.load_in_8bit, load_in_4bit=self.train_config.load_in_4bit
             )
-            torch_dtype = torch.bfloat16
         else:
             quantization_config = None
-            torch_dtype = None
 
-        if self.role == "server":
-            device_map = "cpu"
-        else:
-            device_map = None
-
-        self.extra_config = {
-            "device_map": device_map,
-            "torch_dtype": torch_dtype,
-            "quantization_config": quantization_config
-        }
-
-    def _add_base_model(self):
-        """
-        Build the base language model backbone using huggingface AutoModelForCausalLM, quantize if needed
-
-        Returns:
-            PreTrainedModel: Pre-trained model backbone
-        """
-        if self.train_config.load_in_8bit or self.train_config.load_in_4bit:
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=self.train_config.load_in_8bit, load_in_4bit=self.train_config.load_in_4bit
-            )
-            torch_dtype = torch.bfloat16
-        else:
-            quantization_config = None
-            torch_dtype = None
+        torch_dtype = torch.bfloat16  # important
 
         if self.role == "server":
             device_map = "cpu"
@@ -164,7 +141,8 @@ class BaseModels(ABC):
         Returns:
             PreTrainedModel: Pre-trained model backbone with quantization configured
         """
-        if self.train_config.load_in_8bit or self.train_config.load_in_4bit:
+        if self.phase == 'train' and (self.train_config.load_in_8bit or self.train_config.load_in_4bit):
+        # if (self.train_config.load_in_8bit or self.train_config.load_in_4bit):
             self.logger.info(f"Quantized to 8bit")
             backbone = prepare_model_for_kbit_training(
                 backbone, use_gradient_checkpointing=self.train_config.gradient_checkpointing

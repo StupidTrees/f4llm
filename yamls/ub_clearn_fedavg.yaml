@@ -1,15 +1,17 @@
 data_config:
-  data_name: dpo
+  data_name: rwben
   model_max_length: 1024
   debug_mode: false
   overwrite_cache: true
   template_name: llama_chat_default
+  eval_data_path: /userhome/data/f4llm/rewardben.jsonl
 
 federated_config:
   alpha: -1
   clients_num: 20
-  rounds: 3
+  rounds: 4
   sample: 0.1
+  client_sample_type: coverage
 
   log_valid_len:  # also effects in cen
   save_valid_len: 2
@@ -18,7 +20,7 @@ federated_config:
   log_test_len:
 
   pson: false
-
+  weight_type: loss
   server_ip: 127.0.0.1
   server_port: 15001
 
@@ -27,8 +29,6 @@ model_config:
   lora_rank: 16
   lora_alpha: 32
   lora_dropout: 0.05
-  num_virtual_tokens: 64
-  bottleneck_dim: 16
   model_type: llama2-base
 
 training_config:
@@ -37,27 +37,23 @@ training_config:
   learning_rate: 3e-4
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 8
-  per_device_eval_batch_size: 16
+  per_device_eval_batch_size: 4
   load_in_8bit: true
   bf16: true
 #  weight_decay: 0.
 #  warmup_ratio: 0.03
   lr_scheduler_type: cosine # linear, cosine
+
   local_trainer_name: fedavg_dpo
   eval_name: local
-  metric_name: pairwise
+  metric_name: rwben
   is_decreased_valid_metric: false # ppl:true
   eval_device: 3
   eval_port: 10001
-  eval_during_train: true
+  eval_during_train: false
+  eval_reuse: false
 
-  do_sample: false
+  do_sample: true
   generation_max_length: 512
 
   save_outputs: false
-  visualization:
-    backend: wandb
-    key:
-    project: ultrafeedback_binarized_fedavg_dpo
-    trial: TRIAL1
-

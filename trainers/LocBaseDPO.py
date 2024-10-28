@@ -1,4 +1,5 @@
 import torch
+import inspect
 from torch import nn
 from peft import PeftModel
 import torch.nn.functional as F
@@ -29,6 +30,21 @@ class LocalDPOTrainer(Trainer):
         log_probs = F.log_softmax(logits, dim=-1)
         entropy = self.masked_mean(-torch.sum(probs * log_probs, dim=-1), mask)
         return entropy
+
+    def _set_signature_columns_if_needed(self):
+        # important self.label_names/default_label_names != "labels"
+        if self._signature_columns is None:
+            # Inspect model forward signature to keep only the arguments it accepts.
+            signature = inspect.signature(self.model.forward)
+            self._signature_columns = list(signature.parameters.keys())
+            # self.logger.info(f"The following columns {self._signature_columns} are accepted.")
+
+            if "input_ids" not in self._signature_columns:
+                self._signature_columns += ["input_ids"]
+
+            # Labels may be named label or label_ids, the default data collator handles that.
+            self._signature_columns += list(set(["label", "label_ids", "labels"] + self.label_names))
+            # self.logger.info(f"The following columns {self._signature_columns} are accepted.")
 
     def get_model_output(self, model, inputs, is_ref_model=False):
 
@@ -91,7 +107,6 @@ class LocalDPOTrainer(Trainer):
 
         loss = -torch.nn.functional.logsigmoid(pi_ratio - ref_ratio).mean()
 
-        # perplexity
         outputs = dict(
             chosen_reward=chosen_ratio.detach(),  # shape: (batch_size,)
             rejected_reward=rejected_ratio.detach(),
@@ -127,5 +142,10 @@ class LocalDPOTrainer(Trainer):
         if prediction_loss_only:
             return loss, None, None
         logits = torch.stack(logits, dim=1)
-        labels = torch.zeros(logits.shape[0]).to(logits.device)
+
+        # chosen first, therefore, we can use label_ids as the label for rewardben
+        if "labels" in inputs:
+            labels = inputs["labels"]  # set_name info
+        else:
+            labels = torch.zeros(logits.shape[0]).to(logits.device)
         return loss, logits, labels
