@@ -1,4 +1,3 @@
-
 import os
 from multiprocessing import Pool
 
@@ -9,7 +8,6 @@ from tabulate import tabulate
 from utils.register import registry
 from evals.BaseEvaluator import BaseEvaluator
 from utils.general import setup_seed, read_json, run_process
-
 
 task_group = {
     "alpaca": "winogrande,ai2_arc,hellaswag,truthfulqa_mc2,mmlu",
@@ -73,7 +71,6 @@ def merge_metric(result_files, tasks, output_path, task_name, logger):
     logger.info(f'\n{tabulate(best_metric_df, headers="keys", tablefmt="pretty", showindex=False)}')
     logger.info(f">> Copy Results")
     run_process(f"cat {all_metric_path}")
-    print()
     run_process(f"cat {best_metric_path}")
 
 
@@ -85,7 +82,7 @@ def single_metric(result_file, tasks, output_path, task_name, logger):
     metrics = read_json(result_file)["results"]
     for task in tasks:
         metric_name = task_mertic_mapping[task]
-        metric = round(metrics[task][metric_name]*100, 1)
+        metric = round(metrics[task][metric_name] * 100, 1)
         mean_metrics[checkpoint_name][task] = metric
 
     metrics_df = pd.DataFrame.from_dict(mean_metrics, orient='index')
@@ -121,7 +118,7 @@ class BenEvaluator(BaseEvaluator):
 
     def on_eval_end(self):
         if len(self.result_files) > 1:
-            merge_metric(self.result_files, self.eval_task,
+            merge_metric(self.result_files, self.eval_tasks,
                          self.eval_model_path, self.D.llm_eval_name, self.logger)
         elif len(self.result_files) == 1:
             single_metric(self.result_files[0], self.eval_task,

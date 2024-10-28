@@ -323,6 +323,7 @@ class FedBaseDataManger(ABC):
         Load the attributes of the federated dataset, such as the number of clients
         """
         partition_data = pickle_read(self.data_config.partition_dataset_path)
+        print(self.partition_name, partition_data.keys())
         if self.partition_name in partition_data:
             partition_data = partition_data[self.partition_name]
         self.attribute = partition_data["attribute"]
@@ -366,6 +367,8 @@ class FedBaseDataManger(ABC):
         # if self.model_config.model_type in ["llama2-base", "tinyllama"]:
         if "llama" in self.model_config.model_type:
             self.tokenizer.pad_token = self.tokenizer.unk_token
+            # tokenizer.pad_token = tokenizer.eos_token
+            self.tokenizer.pad_token_id = self.tokenizer.unk_token_id
         elif self.model_config.model_type in ["qwen"]:
             self.tokenizer.eos_token = self.tokenizer.decode(self.tokenizer.eod_id)
             self.tokenizer.pad_token = self.tokenizer.eos_token

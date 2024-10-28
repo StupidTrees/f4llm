@@ -1,18 +1,17 @@
 data_config:
-  data_name: dpo
-  model_max_length: 1024
+  data_name: llama_sft
+  model_max_length: 512
   debug_mode: false
   overwrite_cache: true
-  template_name: llama_chat_default
 
 federated_config:
-  alpha: -1
-  clients_num: 20
-  rounds: 3
-  sample: 0.1
+  alpha: 1.0 # 1.0/10.0/0.1
+  clients_num: 10
+  rounds: 15
+  sample: 0.2
 
   log_valid_len:  # also effects in cen
-  save_valid_len: 2
+  save_valid_len: 5
 
   test_rounds: false
   log_test_len:
@@ -29,35 +28,35 @@ model_config:
   lora_dropout: 0.05
   num_virtual_tokens: 64
   bottleneck_dim: 16
-  model_type: llama2-base
+  model_type: 'llama2-base'
 
 training_config:
   seed: 42
   num_train_epochs: 1
   learning_rate: 3e-4
   per_device_train_batch_size: 1
-  gradient_accumulation_steps: 8
-  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 4
+  per_device_eval_batch_size: 8
   load_in_8bit: true
   bf16: true
+#  align_type: dpo
 #  weight_decay: 0.
 #  warmup_ratio: 0.03
-  lr_scheduler_type: cosine # linear, cosine
-  local_trainer_name: fedavg_dpo
-  eval_name: local
+  # linear, cosine
+  lr_scheduler_type: cosine
+#  dataloader_num_workers: 0
+  eval_name: 'llm-eval'
+  local_trainer_name: fedavg_sft
   metric_name: pairwise
   is_decreased_valid_metric: false # ppl:true
-  eval_device: 3
-  eval_port: 10001
-  eval_during_train: true
 
   do_sample: false
   generation_max_length: 512
 
-  save_outputs: false
+  save_outputs: true
   visualization:
     backend: wandb
-    key:
-    project: ultrafeedback_binarized_fedavg_dpo
-    trial: TRIAL1
+    key: 831e2ff822d48a7784aa8b10f0876f2283317e55
+    project: alpaca2_fedavg_sft
+    trial: Alpaca2-TRIAL1
 

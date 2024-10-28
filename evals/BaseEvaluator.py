@@ -1,5 +1,3 @@
-
-
 import os
 import pandas as pd
 from glob import glob
@@ -8,6 +6,7 @@ from tabulate import tabulate
 from peft import load_peft_weights
 from trainers.LocBaseSFT import LocalSFTTrainer
 
+from visualization.visualizer import Visualizer
 from utils.register import registry
 from utils.general import is_best, pickle_read, run_process
 from utils.general import setup_seed, read_json
@@ -34,6 +33,9 @@ class BaseEvaluator(BaseEngine):
         # global model
         self.best_glo_params = self.serialize_model_parameters()
 
+        # build visualizer
+        self._build_visualizer()
+
     def _load_examples(self):
         if 'json' in self.D.eval_data_path:
             examples = read_json(self.D.eval_data_path)
@@ -56,6 +58,29 @@ class BaseEvaluator(BaseEngine):
         else:
             self.data.load_data()
 
+    def _build_visualizer(self):
+        self.logger.info(
+            f"{self.T.visualization.project}"
+        )
+        self.visualizer = Visualizer(
+            project=self.T.visualization.project,
+            trial_name=self.T.visualization.trial,
+            phase=self.phase,
+            # name=registry.get('metric_line')[0:-1],
+            key=self.T.visualization.key,
+            role=self.role,
+            client_name=self.F.client_name,
+            config={
+                "seed": self.T.seed,
+                "lr": self.T.learning_rate,
+                "fl_algorithm": self.F.fl_algorithm,
+                "clients_num": self.F.client_num_in_total,
+                "total_round": self.F.rounds
+            }
+        )
+        self.step = 0
+        self.logger.info(f"build visualizer: {self.T.visualization.project}({registry.get('metric_line')[0:-1]})")
+
     def run(self):
         self.on_eval_before()
         self.on_eval()
@@ -74,7 +99,7 @@ class BaseEvaluator(BaseEngine):
         pattern = os.path.join(self.T.checkpoint_file, pattern_name)
         checkpoint_files = sorted(glob(pattern, recursive=True),
                                   key=lambda x: os.path.getctime(x), reverse=False)
-
+        self.logger.critical(len(checkpoint_files))
         if len(checkpoint_files) == 0:
             # single checkpoint test
             self.logger.debug("Eval Single Checkpoint")
@@ -82,6 +107,7 @@ class BaseEvaluator(BaseEngine):
             single_file = True
 
         ckpt_metric = {}
+        self.logger.critical(len(checkpoint_files))
         for checkpoint_file in checkpoint_files:
             file = checkpoint_file.split("/")[-1]
             self.logger.info(f"Eval {file} Start")
@@ -112,7 +138,8 @@ class BaseEvaluator(BaseEngine):
             self.logger.info(f"Eval Results save in {checkpoint_opt_file}")
 
             # self._build_model()
-
+        # Not that I set single_file to False to test wandb
+        single_file = False
         if not single_file and not self.T.test_openai:
             metric_path = os.path.join(self.T.checkpoint_file, "metric.csv")
             metrics_df = pd.DataFrame.from_dict(ckpt_metric, orient='index')
@@ -134,6 +161,14 @@ class BaseEvaluator(BaseEngine):
             # 20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16.loss得到要push的子实验
             # 或者从self.T.checkpoint_file中push
             # 还可以构造 {self.T.times}_20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16.loss
+            self.visualizer.log(
+                # global_round=registry.get('round'),
+                # global_round=self.round,
+                data={
+                    "test_loss": ckpt_metric[self.T.checkpoint_file.split("/")[-1]][self.metric_name]
+                },
+                global_round=int(self.T.checkpoint_file.split("/")[-1].split("-")[-1])
+            )
 
         if self.T.test_best and not self.T.test_openai:
             self.logger.critical("Test Start")
