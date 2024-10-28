@@ -19,25 +19,6 @@ class BaseTrainer(BaseEngine):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def _build_visualizer(self):
-        self.visualizer = Visualizer(
-            project=self.T.visualization.project,
-            trial_name=self.T.visualization.trial,
-            role=self.role,
-            client_name=self.F.client_name,
-            phase=self.phase,
-            # name=registry.get('metric_line')[0:-1],
-            key=self.T.visualization.key,
-            config={
-                "seed": self.T.seed,
-                "lr": self.T.learning_rate,
-                "fl_algorithm": self.F.fl_algorithm,
-                "clients_num": self.F.client_num_in_total,
-                "total_round": self.F.rounds
-            }
-        )
-        self.logger.info(f"build visualizer: {self.T.visualization.project}({registry.get('metric_line')[0:-1]})")
-
     def _build_selections(self):
         self.selections = ClientSampling(
             range(self.F.client_num_in_total), self.F.client_num_per_round,
@@ -91,9 +72,10 @@ class BaseTrainer(BaseEngine):
         # build communicators
         self._build_communicators()
 
-    def run(self):
         # build visualizer
         self._build_visualizer()
+
+    def run(self):
         """
         Run the trainer according to the phase
         """
@@ -193,10 +175,11 @@ class BaseTrainer(BaseEngine):
                               "--not_overwrite_args", "eval_name",
                               "--checkpoint_file", f"{self.T.checkpoint_dir}"])
             eval_opts = ["python"] + eval_opts
-            self.p = subprocess.Popen(eval_opts)
+            setattr(self, "eval_opts", subprocess.Popen(eval_opts))
+        else:
+            setattr(self, "eval_opts", None)
 
     def server_logging(self, loss_list):
-        # TODO @yukun/guanzhong push training info(this_round_loss and loss_list以及方差等)
         this_round_loss = sum(loss_list) / len(loss_list)
         self.logger.warning(
             f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(loss_list)}_"
@@ -209,8 +192,6 @@ class BaseTrainer(BaseEngine):
                 # "loss_list": loss_list,
             }
         )
-        # registry.get('metric_line')[0:-1]可以作为wandb小实验的名字 他大概长这样：
-        # 20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16
 
     def server_aggregator(self, serialized_params_list, loss_list):
         """fl algorithm, default fedavg"""
@@ -241,8 +222,8 @@ class BaseTrainer(BaseEngine):
             )
         )
 
-        if hasattr(self, 'p'):
-            while self.p.returncode != 0:
+        if self.eval_opts is not None:
+            while self.eval_opts.returncode != 0:
                 continue
 
     def client_join(self):
@@ -274,11 +255,13 @@ class BaseTrainer(BaseEngine):
                 self.round = msg.content['round']
                 client_ids = msg.content['client_ids'][int(self.F.client_name)]
                 self.client_process(client_ids, model_parameters)
+                self.client_valid()
+                self.client_logging()
 
     def client_process(self, client_ids, model_parameters):
         param_list, loss_list = {}, {}
         for idx in client_ids:
-            train_loss = self.client_train(
+            train_loss = self.client_update(
                 idx=idx,
                 model_parameters=model_parameters
             )
@@ -298,7 +281,7 @@ class BaseTrainer(BaseEngine):
             )
         )
 
-    def client_train(self, idx, model_parameters, *args, **kwargs):
+    def client_update(self, idx, model_parameters, *args, **kwargs):
         self.logger.debug(f"\n{'=' * 37}\n>>> Subserver={self.F.client_name}_"
                           f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 37}")
 
@@ -328,6 +311,12 @@ class BaseTrainer(BaseEngine):
         self.logger.info(f">>> Subserver={self.F.client_name}_Client={idx}_lr="
                          f"{self.T.learning_rate * 10000:.2f}e-4_Loss={train_loss}")
         return train_loss
+
+    def client_valid(self):
+        """Valid on Client"""
+
+    def client_logging(self):
+        """Logging on Client"""
 
     def on_client_end(self):
         self.logger.critical(f"Subserver {self.F.client_name} Train done")

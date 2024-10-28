@@ -187,20 +187,14 @@ class MetricForRewardBenwise(BaseMetric):
         save_data = {"preds": preds, "labels": labels, "inputs": inputs, "set_ids": set_ids}
         pickle_write(save_data, checkpoint_opt_file)
 
-        # print(type(set_ids))
-        # set_ids = set_ids.numpy()
-
-        # 1. 将输入的numpy arrays转换为pandas DataFrame
         df = pd.DataFrame({
             'labels': labels,
             'predicts': preds,
             'set_ids': set_ids
         })
 
-        # 2. 使用groupby按照set_ids进行分组
         grouped = df.groupby('set_ids')
 
-        # 3. 计算每个分组的准确率
         accuracy_per_set = grouped.apply(lambda x: (x['labels'] == x['predicts']).mean())
         accuracy_per_dict = accuracy_per_set.to_dict()
 

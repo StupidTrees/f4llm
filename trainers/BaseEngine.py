@@ -1,10 +1,7 @@
-import copy
-import os
-from copy import deepcopy
 
-from peft import (
-    get_peft_model_state_dict,
-    set_peft_model_state_dict)
+import os
+import copy
+from visualization.visualizer import Visualizer, VisCallback
 
 from utils.register import registry
 from datas.base_data import FedBaseDataset
@@ -106,6 +103,25 @@ class BaseEngine(object):
         self.eval_args = copy.deepcopy(self.T)
         self.eval_args.evaluation_strategy = "epoch"
         self.eval_args.predict_with_generate = True
+
+    def _build_visualizer(self):
+        self.visualizer = Visualizer(
+            project=self.T.visualization.project,
+            trial_name=self.T.visualization.trial,
+            role=self.role,
+            client_name=self.F.client_name,
+            phase=self.phase,
+            # name=registry.get('metric_line')[0:-1],
+            key=self.T.visualization.key,
+            config={
+                "seed": self.T.seed,
+                "lr": self.T.learning_rate,
+                "fl_algorithm": self.F.fl_algorithm,
+                "clients_num": self.F.client_num_in_total,
+                "total_round": self.F.rounds
+            }
+        )
+        self.logger.info(f"build visualizer: {self.T.visualization.project}({registry.get('metric_line')[0:-1]})")
 
     def run(self):
         raise NotImplementedError

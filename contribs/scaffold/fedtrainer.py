@@ -90,7 +90,7 @@ class ScaffoldTrainer(BaseTrainer):
             )
         )
 
-    def client_train(self, idx, model_parameters, auxiliary_model_list, global_auxiliary):
+    def client_update(self, idx, model_parameters, auxiliary_model_list, global_auxiliary):
         self.logger.debug(f"\n{'=' * 37}\n>>> Subserver={self.F.client_name}_"
                           f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 37}")
 

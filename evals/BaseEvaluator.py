@@ -58,29 +58,6 @@ class BaseEvaluator(BaseEngine):
         else:
             self.data.load_data()
 
-    def _build_visualizer(self):
-        self.logger.info(
-            f"{self.T.visualization.project}"
-        )
-        self.visualizer = Visualizer(
-            project=self.T.visualization.project,
-            trial_name=self.T.visualization.trial,
-            phase=self.phase,
-            # name=registry.get('metric_line')[0:-1],
-            key=self.T.visualization.key,
-            role=self.role,
-            client_name=self.F.client_name,
-            config={
-                "seed": self.T.seed,
-                "lr": self.T.learning_rate,
-                "fl_algorithm": self.F.fl_algorithm,
-                "clients_num": self.F.client_num_in_total,
-                "total_round": self.F.rounds
-            }
-        )
-        self.step = 0
-        self.logger.info(f"build visualizer: {self.T.visualization.project}({registry.get('metric_line')[0:-1]})")
-
     def run(self):
         self.on_eval_before()
         self.on_eval()

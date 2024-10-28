@@ -12,7 +12,7 @@ class FedProxTrainer(BaseTrainer):
         super().__init__(*args)
         self._before_training()
 
-    def client_train(self, idx, model_parameters, *args, **kwargs):
+    def client_update(self, idx, model_parameters, *args, **kwargs):
         self.logger.debug(f"\n{'=' * 35}\n>>> Subserver={self.F.client_name}_"
                           f"Client={idx}_Round={self.round + 1} <<<\n{'=' * 35}")
 
