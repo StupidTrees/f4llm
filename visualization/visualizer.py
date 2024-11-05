@@ -73,7 +73,7 @@ class VisCallback(TrainerCallback):
         self.vis = vis
 
     def on_log(self, args, state, control, model=None, logs=None, **kwargs):
-        if state.is_world_process_zero:
+        if state.is_world_process_zero and self.vis is not None:
             # logs = rewrite_logs(logs)
             self.vis.log(global_round=registry.get('round'),
                          curr_step=state.global_step,

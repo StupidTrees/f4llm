@@ -92,3 +92,7 @@ class TrainArguments(TrainingArguments):
     dpo_beta: float = field(
         default=0.1, metadata={"help": "used for dpo."}
     )
+    # visualization
+    visualization: bool = field(
+        default=None, metadata={"help": "used for visualization."}
+    )

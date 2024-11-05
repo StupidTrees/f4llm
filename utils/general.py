@@ -529,7 +529,7 @@ def setup_imports():
     project_name = root_folder.split(os.sep)[-2]
     root_folder = os.path.join(root_folder, "..")  # check here
     files = []
-    for package_name in ["trainers", "contribs", "models", "datas", "utils", "configs", "evals", "metrics"]:
+    for package_name in ["trainers", "contribs", "models", "datas", "utils", "configs", "evals", "metrics", "visualization"]:
         folder = os.path.join(root_folder, package_name)
         pattern = os.path.join(folder, "**", "*.py")
         files.extend(glob(pattern, recursive=True))

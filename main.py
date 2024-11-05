@@ -9,8 +9,10 @@ from utils.register import registry
 def run_experiment(config):
     phase = registry.get("phase")
     if phase == "train":
+        # federated llm training
         engine = registry.get_fedtrainer(config.F.fl_algorithm)()
     else:
+        # llm inference
         engine = registry.get_eval_class(config.T.eval_name)()
     engine.run()
 

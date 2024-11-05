@@ -323,7 +323,6 @@ class FedBaseDataManger(ABC):
         Load the attributes of the federated dataset, such as the number of clients
         """
         partition_data = pickle_read(self.data_config.partition_dataset_path)
-        print(self.partition_name, partition_data.keys())
         if self.partition_name in partition_data:
             partition_data = partition_data[self.partition_name]
         self.attribute = partition_data["attribute"]

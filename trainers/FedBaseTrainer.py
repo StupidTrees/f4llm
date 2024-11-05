@@ -95,7 +95,7 @@ class BaseTrainer(BaseEngine):
                 self.comm_manager.add_communicator(
                     communicator_id=msg.sender,
                     communicator_address=f"{msg.content['client_ip']}:{msg.content['client_port']}")
-                self.logger.info(f"Subserver {msg.sender} joined in. {client_num}-{self.F.num_sub}")
+                self.logger.info(f"Subserver {msg.sender} joined in ({client_num}/{self.F.num_sub}).")
                 self.logger.info(list(self.comm_manager.communicators.keys()))
         self.logger.debug(f"all subserver ({len(self.comm_manager.communicators)}) connect")
 
@@ -185,13 +185,14 @@ class BaseTrainer(BaseEngine):
             f"FL={self.F.fl_algorithm}_Round={self.round}_ClientNum={len(loss_list)}_"
             f"Loss={this_round_loss:.3f}"
         )
-        self.visualizer.log(
-            global_round=self.round,
-            data={
-                "train_loss": this_round_loss,
-                # "loss_list": loss_list,
-            }
-        )
+        if self.visualizer is not None:
+            self.visualizer.log(
+                global_round=self.round,
+                data={
+                    "train_loss": this_round_loss,
+                    # "loss_list": loss_list,
+                }
+            )
 
     def server_aggregator(self, serialized_params_list, loss_list):
         """fl algorithm, default fedavg"""
@@ -227,7 +228,6 @@ class BaseTrainer(BaseEngine):
                 continue
 
     def client_join(self):
-        self.logger.debug(f"Subserver {self.F.client_ip}:{self.F.client_port} join in federated learning")
         self.comm_manager.send(
             Message(
                 message_type=100,
@@ -239,6 +239,7 @@ class BaseTrainer(BaseEngine):
                 }
             )
         )
+        self.logger.debug(f"Subserver {self.F.client_ip}:{self.F.client_port} join in federated learning")
 
     def client_run(self):
         # client join in federated learning

@@ -133,19 +133,15 @@ class BaseEvaluator(BaseEngine):
             with self.T.main_process_first():
                 run_process(f"cat {metric_path}")
 
-            # TODO @yukun&guanzhong push ayn/loc metric into wandb
-            # push的位置可以从训练后文件夹里读取，如：
-            # 20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16.loss得到要push的子实验
-            # 或者从self.T.checkpoint_file中push
-            # 还可以构造 {self.T.times}_20240724224556_tinyllama_lora_lr0.0003_epo1_bs32_cli20_sap2_alp-1_rd20_la16.loss
-            self.visualizer.log(
-                # global_round=registry.get('round'),
-                # global_round=self.round,
-                data={
-                    "test_loss": ckpt_metric[self.T.checkpoint_file.split("/")[-1]][self.metric_name]
-                },
-                global_round=int(self.T.checkpoint_file.split("/")[-1].split("-")[-1])
-            )
+            if self.visualizer is not None:
+                self.visualizer.log(
+                    # global_round=registry.get('round'),
+                    # global_round=self.round,
+                    data={
+                        "test_loss": ckpt_metric[self.T.checkpoint_file.split("/")[-1]][self.metric_name]
+                    },
+                    global_round=int(self.T.checkpoint_file.split("/")[-1].split("-")[-1])
+                )
 
         if self.T.test_best and not self.T.test_openai:
             self.logger.critical("Test Start")
