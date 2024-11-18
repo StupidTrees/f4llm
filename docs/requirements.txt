@@ -8,7 +8,7 @@ sphinxcontrib-bibtex
 
 
 peft
-grpc
+grpcio
 pympler
 loguru
 trl
