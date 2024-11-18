@@ -5,7 +5,7 @@ idx=0
 for i in $@
 do
   args[${idx}]=$i
-  let "idx=${idx}+1"
+  let "idx=${idx}+1
 done
 
 # split parameters
